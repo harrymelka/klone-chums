@@ -78,3 +78,12 @@ aucune fusion future n’est présentée comme déjà validée.
 - `Screen.swift` et `HubClient.swift` : mode aperçu vocal iPhone opt-in, requête
   `/v1/transcribe` annulable avec génération contre les résultats tardifs.
   Le flux vocal Watch conserve son envoi existant.
+
+## Livraison 0.3 (3)
+
+- Présentation iPhone : sheet SwiftUI native, composer partagé avec la home,
+  interactions du fond activées, toucher extérieur capté par la surface racine.
+- Watch : contenu dimensionné à la page native, zone d’horloge explicite,
+  clipping du fil, toolbar système masquée, bouton de chat visible sur scène.
+- MacApp : retrait des deux ouvertures automatiques du chat au début du vocal.
+- prepare.py et mac.yml : version de livraison 0.3 (3), visible dans les apps.

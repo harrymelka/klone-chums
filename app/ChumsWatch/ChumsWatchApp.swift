@@ -115,19 +115,25 @@ struct ChumsScreen: View {
             .modifier(CharacterCrown(enabled: !chatOpen && viewing == nil && !showSettings,
                                      crown: $crown, focused: $characterFocused))
         }
-        .overlay(alignment: .bottom) {
-            // Tap the handle to open the conversation; a background swipe can still open it.
+        .overlay(alignment: .bottomTrailing) {
+            // A visible conversation action supplements the existing upward swipe.
             if !chatOpen && !reduced {
                 Button {
                     model.cancelTouch()
                     pulling = false
                     chatPull = 0
-                    withAnimation(.snappy(duration: 0.28)) { chatOpen = true }
+                    chatOpen = true
                 } label: {
-                    Grabber(quiet: true).frame(width: 90, height: 30, alignment: .bottom).padding(.bottom, 5)
-                        .contentShape(Rectangle())
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(Color.black.opacity(0.75), in: Circle())
                 }
-                .buttonStyle(.plain).accessibilityLabel("Ouvrir la conversation")
+                .buttonStyle(.plain)
+                .padding(.trailing, 10).padding(.bottom, 10)
+                .accessibilityLabel("Ouvrir la conversation")
+                .accessibilityIdentifier("watch-open-chat")
             }
         }
         .overlay(alignment: .bottom) {
@@ -222,14 +228,31 @@ struct ChumsScreen: View {
             if model.listening { model.micUp(cancel: true) }
             characterFocused = viewing == nil && !showSettings
         }) {
-            ChatPanel(lines: model.conversation, open: open, scroll: chatScroll,
-                      listening: model.listening, sending: model.controller.talk == .sending,
-                      talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
-                      cancel: { model.micUp(cancel: true) },
-                      close: { chatOpen = false })
-                .sheet(item: $viewing) { artifact in
-                    ArtifactViewer(a: artifact) { viewing = nil }
-                }
+            GeometryReader { geometry in
+                ChatPanel(lines: model.conversation, open: open, scroll: chatScroll,
+                          listening: model.listening, sending: model.controller.talk == .sending,
+                          talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
+                          cancel: { model.micUp(cancel: true) },
+                          close: { chatOpen = false })
+                    // The native sheet keeps its old navigation inset even with the toolbar hidden.
+                    // Use the full page and reserve only the clock's 28-point band ourselves.
+                    .frame(width: geometry.size.width, height: max(0, geometry.size.height - 28))
+                    .padding(.top, 28)
+            }
+            .ignoresSafeArea(.container, edges: .all)
+            .onGeometryChange(for: String.self) { geometry in
+                let frame = geometry.frame(in: .global)
+                return "width=\(Int(geometry.size.width)) height=\(Int(geometry.size.height)) originX=\(Int(frame.minX)) originY=\(Int(frame.minY)) safeTop=\(Int(geometry.safeAreaInsets.top)) safeBottom=\(Int(geometry.safeAreaInsets.bottom))"
+            } action: { metrics in
+                // Observe settled geometry without writing view state or scroll position.
+                hub.event("chat sheet layout " + metrics)
+            }
+            // Request the native sheet's full page instead of an intrinsic content-sized presentation.
+            .presentationSizing(.page)
+            .toolbarVisibility(.hidden, for: .navigationBar)
+            .sheet(item: $viewing) { artifact in
+                ArtifactViewer(a: artifact) { viewing = nil }
+            }
         }
         .sheet(isPresented: $showSettings) {
             AgentsView(agents: hub.state?.agents ?? Agents.known, active: $agent,
@@ -520,6 +543,10 @@ struct SettingsView: View {
             }
             Section {
                 Toggle("Demo: play every state", isOn: $demo)
+            }
+            Section("Version") {
+                Text("Klone Chums \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.1") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"))")
+                Text(HubConfig.build).font(.caption).foregroundStyle(.secondary)
             }
         }
     }

@@ -98,3 +98,15 @@ Ne cocher les validations sur appareil qu’après leur observation.
 - [x] Chat sans gros titre ni toolbar ; fermeture par tirage bas ou toucher extérieur.
 - [x] Vocal iPhone : capture/transcription annulables, relecture avant envoi Hermès.
 - [ ] Recette physique du clavier, des gestes et de l’annulation avec Harry.
+
+## Révision 0.3 (3) — surfaces natives
+
+- [x] Remplacer le panneau iPhone custom par une sheet native medium/large sans assombrissement.
+- [x] Composer iPhone sur une ligne, micro rond et flèche selon le contenu.
+- [x] Déplacer le réglage vocal hors du composer.
+- [x] Watch : bouton chat visible, retrait du chevron et de la croix système, hauteur et clipping repris.
+- [x] Mac : retirer l’ouverture automatique du chat lors du démarrage vocal, garder pause/reprise.
+- [x] Version 0.3 (3) identifiable dans les interfaces.
+- [x] Contrôler le rendu Watch en simulateur et corriger hauteur/clipping avant installation.
+- [ ] Recette automatisée fiable de chaque geste Crown/swipe : Device Hub ne l’a pas permis ; comportement natif antérieur conservé.
+- [ ] Relancer le Mac mis à jour après conservation/traitement du brouillon actuellement ouvert.

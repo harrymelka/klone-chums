@@ -206,3 +206,40 @@ Le lancement de capture forçait le fil visible via argument temporaire ; l’ap
 a ensuite été relancée normalement. Aucun micro démarré par ces contrôles.
 La fermeture gestuelle, la Crown Watch et l’annulation vocale restent à confirmer
 en usage ; aucune réussite physique n’est déduite de la seule installation.
+
+## Révision 0.3 (3) — contrôle direct des interfaces
+
+- Runtime watchOS 27 installé et simulateur `Klone QA Watch` créé. Xcode 27
+  utilise Device Hub pour sa fenêtre de contrôle. Le téléchargement iOS 27 a
+  été refusé faute d’espace (8,07 Go demandés) ; l’iPhone physique a été contrôlé
+  via Device Hub et captures devicectl.
+- Plusieurs captures simulateur ont révélé que la première correction de hauteur
+  était encore insuffisante. La version finale utilise une page native explicite,
+  ignore les anciens insets de navigation, réserve 28 points pour l’horloge et
+  clippe le viewport. Les captures finales montrent poignée sous l’horloge,
+  fil sur la hauteur restante et Parler au bas, sans croix ni chevron.
+- Le nouveau bouton bulle ouvre effectivement le chat dans le simulateur.
+  Plusieurs positions de l’historique ont été observées. Les gestes drag/wheel
+  de Device Hub n’ont pas permis une recette fiable de chaque sens de Crown
+  et du swipe ; le comportement natif confirmé par Harry avant cette révision
+  est conservé. Aucun succès supplémentaire de ces gestes n’est prétendu.
+- iPhone réel : composer compact, champ focalisé et texte synthétique saisi
+  sans envoi ; Envoyer remplace le micro. La sheet native medium affiche
+  l’historique sans assombrir le personnage. Ouverture via bouton et fermeture
+  par toucher extérieur vérifiées dans le build final, captures privées gardées.
+  Le clavier matériel de Device Hub était utilisé pour ce contrôle de saisie.
+- Builds Release signés iPhone/Watch/Mac et build simulateur réussis. Version
+  0.3 (3) installée/lancée sur les appareils physiques. Aucun flag de capture
+  laissé sur l’iPhone physique.
+- Mac : signature vérifiée, contrôle API réel réussi (18 lignes, audio initial
+  silencieux). Les deux démarrages vocaux n’appellent plus l’ouverture du chat.
+  Le processus précédent est resté ouvert pour conserver son brouillon vocal ;
+  le nouveau binaire attend sa relance, sans perte du brouillon ni faux essai micro.
+
+Contrôle de fin : hub local et route privée appareils HTTP 200 ; Hermès et
+la voix ont expiré à cinq secondes. `docker ps` et le diagnostic d’import Whisper
+se sont également bloqués ; les processus de diagnostic locaux ont été arrêtés,
+sans redémarrer le conteneur partagé. Docker Desktop n’a pas répondu au contrôle
+d’interface. Ceci bloque une nouvelle recette vocale de bout en bout, sans
+changement backend dans cette révision. Les succès antérieurs ne remplacent pas
+ce constat de fin. Le simulateur Watch a été éteint après les contrôles.

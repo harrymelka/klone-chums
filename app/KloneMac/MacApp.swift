@@ -64,7 +64,14 @@ final class MacDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         chat.contentView = NSHostingView(rootView: MacChatView(model: model))
         item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.image = NSImage(systemSymbolName: "bubble.left.and.bubble.right", accessibilityDescription: "Klone Chums")
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
+        let versionLabel = "Klone Chums Mac · \(version) (\(build))"
+        item.button?.toolTip = versionLabel
         let menu = NSMenu()
+        let versionItem = NSMenuItem(title: versionLabel, action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false; menu.addItem(versionItem)
+        menu.addItem(.separator())
         for (title, action, key) in [("Parler à Hermès", #selector(talk), ""), ("Ouvrir la conversation", #selector(openChat), ""), ("Afficher / masquer le personnage", #selector(togglePet), ""), ("Replacer le personnage", #selector(resetPet), "")] {
             let entry = NSMenuItem(title: title, action: action, keyEquivalent: key); entry.target = self; menu.addItem(entry)
         }
@@ -77,7 +84,7 @@ final class MacDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func showChat() {
         chat.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true)
     }
-    @objc func talk() { showChat(); model.microphone() }
+    @objc func talk() { pet.orderFrontRegardless(); model.microphone() }
     @objc func openChat() { showChat() }
     @objc func togglePet() {
         if pet.isVisible { pet.orderOut(nil) } else { pet.orderFrontRegardless() }
@@ -132,7 +139,7 @@ struct PetView: View {
                         .help("Ouvrir et corriger la transcription avant envoi")
                 }
             } else {
-                Button { open(); model.microphone() } label: {
+                Button { model.microphone() } label: {
                     Label(model.requestingMicrophone ? "Autoriser le micro…" : model.status,
                           systemImage: model.approval != nil ? "questionmark.bubble" : "mic.fill")
                         .font(.system(size: 12, weight: .medium)).lineLimit(1)
@@ -140,7 +147,7 @@ struct PetView: View {
                         .background(.regularMaterial, in: Capsule())
                 }
                 .buttonStyle(.plain).disabled(!model.maySend)
-                .help("Ouvrir le chat et enregistrer un message")
+                .help("Enregistrer un message dans le compagnon du bureau")
             }
             Spacer(minLength: 4)
         }

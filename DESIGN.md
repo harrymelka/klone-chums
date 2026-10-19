@@ -31,3 +31,17 @@ respect the window safe area. Keep the conversation overlay light and unobtrusiv
 no large title or close/expand toolbar. Dismiss downward or by tapping outside.
 Voice capture exposes a text Cancel action and finishes into a reviewable draft
 before any Hermes submission.
+
+## Révision 0.3 (3)
+
+Use an actual native iPhone sheet with medium/large detents, enabled background
+interaction and no dimmed canvas. Remove the custom resizable overlay and its
+manual geometry/drag state. Composer is one row: plus, text field, circular
+microphone; a nonempty draft replaces the microphone with Send. Move voice
+playback settings into the top menu.
+
+Watch retains its native conversation sheet and working scrolling, fills the
+available screen, clips messages within their viewport and anchors speech at
+the bottom. Remove redundant close icons; provide a visible chat icon on the
+character screen. Mac voice capture stays in the desktop companion and must
+not automatically open its separate chat window.

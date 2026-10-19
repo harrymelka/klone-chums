@@ -8,7 +8,7 @@ connectée à notre profil Hermès existant. Ce dossier est indépendant d’App
 1. Docker doit faire tourner `binome` et sa passerelle Hermès existante.
 2. Sur le Mac et l’iPhone, connecter Tailscale au réseau privé habituel.
 3. Double-cliquer **Lancer Klone Chums.command** dans ce dossier.
-4. Ouvrir **Klone Chums** sur l’iPhone, puis écrire ou maintenir le micro pour parler.
+4. Ouvrir **Klone Chums** sur l’iPhone, puis toucher « Écrire à Hermès… » ou le micro rond pour parler.
 
 Le lancement démarre uniquement notre serveur local. Aucun agent Claude/Codex,
 aucun second modèle Whisper et aucun service au démarrage de session n’est installé.
@@ -104,7 +104,8 @@ pas une voix différente automatiquement.
 
 ## Chat et complication Watch
 
-Le chat possède maintenant une barre fixe : **Parler**, puis **Envoyer** pendant
+La bulle en bas à droite du personnage ouvre le chat. Le fil remplit la hauteur
+utile ; sa poignée permet de le fermer vers le bas. Sa barre fixe contient **Parler**, puis **Envoyer** pendant
 l’enregistrement, avec **Annuler** et une fermeture du chat accessible sans remonter.
 Fermer le chat ou quitter l’app annule un enregistrement encore en cours.
 
@@ -122,7 +123,7 @@ existante dans le cadran si watchOS conserve son ancien aperçu en cache.
 ## Compagnon Mac
 
 Double-cliquer **Lancer le compagnon Mac.command**. Le personnage apparaît sur
-le bureau, sans fond noir. Le bouton **Parler** ouvre la conversation et demande
+le bureau, sans fond noir. Le bouton vocal du personnage démarre la capture dans le compagnon et demande
 l’autorisation macOS du microphone au premier usage. **Pause** et **Reprendre**
 contrôlent la capture ; **Terminer** lance la transcription seule. Relire ou modifier
 le texte, puis **Envoyer** pour le transmettre à Hermès, ou **Annuler**. Un clic sur
@@ -146,12 +147,15 @@ Pour reconstruire : `klone/build-mac.sh`. L’app signée reste dans
 
 Harry a choisi la piste **B, fond clair**, avec le **fil visible** de C :
 personnage en grand sur un fond chaud, sans carré de montre. Le canevas passe sous
-les barres du système. Le fil est un panneau superposé : tirer sa poignée pour
+les barres du système. Le fil est une sheet native à deux hauteurs : tirer sa poignée pour
 changer sa hauteur, tirer vers le bas ou toucher hors du fil pour le cacher, puis l’icône discussion pour
 le retrouver. Les messages reçus sont à gauche, les messages envoyés à droite.
 Le personnage reste présent, réduit et remonté, pendant la saisie.
 
-Le bouton **+** donne accès aux photos et à la saisie. Choisir jusqu’à quatre
+Le composer reste sur une ligne : **+** pour les photos, champ **Écrire à Hermès…**
+à gauche et micro rond à droite. Toucher le champ ouvre la saisie ; dès qu’il
+contient du texte, la flèche Envoyer remplace le micro. Le réglage de voix est
+dans le menu du haut. Le bouton **+** donne accès aux photos. Choisir jusqu’à quatre
 photos, vérifier leurs aperçus puis envoyer ; un échec conserve le brouillon.
 Le sélecteur d’apparence affiche chaque personnage avec sa photo et son nom ;
 changer d’apparence conserve la même conversation Hermès.
@@ -170,3 +174,10 @@ uniquement la transcription au Whisper partagé. Cette transcription peut encore
 être annulée. Le résultat devient un brouillon modifiable : **Envoyer** transmet
 la demande à Hermès, **Annuler** supprime ce brouillon vocal. Une demande déjà
 transmise à Hermès ne peut pas être retirée par ces commandes.
+
+## Identifier cette livraison
+
+Version **0.3 (3)** sur iPhone (sous le titre Hermès), Watch (Réglages → Version)
+et Mac (menu de barre de menus). Le binaire Mac sur disque peut être plus récent
+que le processus déjà ouvert ; relancer le compagnon après traitement de son
+éventuel brouillon non envoyé.

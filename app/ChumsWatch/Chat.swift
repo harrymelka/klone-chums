@@ -40,7 +40,7 @@ struct ChatPanel: View {
         VStack(spacing: 0) {
             if let close {
                 Grabber()
-                    .frame(maxWidth: .infinity, minHeight: 24)
+                    .frame(maxWidth: .infinity).frame(height: 24)
                     .contentShape(Rectangle())
                     .onTapGesture(perform: close)
                     .gesture(DragGesture(minimumDistance: 12).onEnded { value in
@@ -80,8 +80,12 @@ struct ChatPanel: View {
                     }
                 }
             }
-            if let talk { composer(talk: talk) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .layoutPriority(1)
+            if let talk { composer(talk: talk).fixedSize(horizontal: false, vertical: true) }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.black)
     }
 
@@ -100,19 +104,14 @@ struct ChatPanel: View {
                     Text(sending ? "Envoi…" : listening ? "Envoyer" : "Parler")
                         .font(.system(size: 15, weight: .semibold))
                 }
-                .frame(maxWidth: .infinity, minHeight: 44)
+                .frame(maxWidth: .infinity).frame(height: 44)
                 .background(listening ? Pal.green : Color.white.opacity(0.15), in: Capsule())
                 .foregroundStyle(listening ? .black : .white)
             }
             .disabled(sending)
             .accessibilityIdentifier("chat-microphone")
             .accessibilityLabel(listening ? "Envoyer le message vocal" : "Parler dans la conversation")
-            if !listening, let close {
-                Button(action: close) {
-                    Image(systemName: "chevron.down").frame(width: 38, height: 44)
-                }
-                .accessibilityLabel("Fermer la conversation")
-            }
+
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 8)
