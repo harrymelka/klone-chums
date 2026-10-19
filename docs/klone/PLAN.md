@@ -90,4 +90,11 @@ Ne cocher les validations sur appareil qu’après leur observation.
 - [x] Widgets : transitions courtes et vraies poses/états, sans boucle d’animation prétendue.
 - [ ] Validation physique du nouveau panneau iPhone et de la saisie avec Harry.
 - [ ] Validation vocale Mac (pause/reprise et relecture) avec Harry.
-- [ ] Défilement Watch : premier correctif insuffisant, nouvelle correction viewport/Crown à faire confirmer.
+- [ ] Défilement Watch : correctifs manuels rejetés en essai ; ScrollView natif en overlay également rejeté ; isoler en présentation système, rétablir swipe fermeture, validation physique requise.
+
+## Retours suivants — iPhone immersif et vocal
+
+- [x] Contrôles supérieurs sous la barre système, canevas intégral conservé.
+- [x] Chat sans gros titre ni toolbar ; fermeture par tirage bas ou toucher extérieur.
+- [x] Vocal iPhone : capture/transcription annulables, relecture avant envoi Hermès.
+- [ ] Recette physique du clavier, des gestes et de l’annulation avec Harry.

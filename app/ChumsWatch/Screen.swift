@@ -25,6 +25,12 @@ final class ScreenModel {
     /// Something that went wrong, in words, for a screen that doesn't draw the watch's caption (the iPhone shows it as a
     /// note in the conversation).
     @ObservationIgnored var onNotice: ((String) -> Void)?
+    /// Opt-in for the iPhone composer. Watch keeps its existing release-to-send flow.
+    @ObservationIgnored var voicePreviewEnabled = false
+    @ObservationIgnored var onVoicePreview: ((String, String?) -> Void)?
+    private(set) var voicePreviewPending = false
+    @ObservationIgnored private var voicePreviewTask: Task<Void, Never>?
+    @ObservationIgnored private var voicePreviewGeneration = 0
     private func tell(_ s: String) { rig.caption = s; onNotice?(s) }
     /// The note when the microphone isn't allowed (the iPhone adds a way to Settings under it).
     static let micRefused = "Allow the microphone for Chums in Settings."
@@ -338,6 +344,7 @@ final class ScreenModel {
     @ObservationIgnored private var talkLimit: Task<Void, Never>?
 
     private func beginTalk() {
+        guard !voicePreviewPending else { return }
         guard micAllowed else { tell(Self.micRefused); return }
         speaker.stop()
         do {
@@ -401,9 +408,32 @@ final class ScreenModel {
             return
         }
         controller.talk = .sending
-        controller.orderSent()
         Haptics.play(.click)
         let approval = talkApproval, to = talkAgent
+        if voicePreviewEnabled {
+            voicePreviewGeneration += 1
+            let generation = voicePreviewGeneration
+            voicePreviewPending = true
+            voicePreviewTask = Task {
+                defer { try? FileManager.default.removeItem(at: clip.url) }
+                do {
+                    let text = try await hub.transcribe(audio: clip.url)
+                    guard !Task.isCancelled, generation == voicePreviewGeneration else { return }
+                    voicePreviewPending = false; voicePreviewTask = nil
+                    if controller.talk == .sending { controller.talk = .none }
+                    onVoicePreview?(text, approval)
+                    controller.flushHeld()
+                } catch {
+                    guard !Task.isCancelled, generation == voicePreviewGeneration else { return }
+                    voicePreviewPending = false; voicePreviewTask = nil
+                    if controller.talk == .sending { controller.talk = .none }
+                    Haptics.play(.failure); tell(error.localizedDescription)
+                    controller.flushHeld()
+                }
+            }
+            return
+        }
+        controller.orderSent()
         Task {
             let result = await hub.send(audio: clip.url, approval: approval, agent: to)
             try? FileManager.default.removeItem(at: clip.url)
@@ -431,7 +461,7 @@ final class ScreenModel {
 
     /// The microphone button went down: talk to the agent on screen (an approval of its on screen is what a yes or no answers).
     func micDown() {
-        guard g.mode != .talk else { return }
+        guard !voicePreviewPending, g.mode != .talk else { return }
 #if !os(watchOS)
         // the first hold asks for the microphone; that hold doesn't record (hold again once it's allowed)
         if !Recorder.fake && AVAudioApplication.shared.recordPermission == .undetermined {
@@ -451,12 +481,32 @@ final class ScreenModel {
         g.mode = .none; rig.talkSlide = 0
         if cancel { cancelTalk() } else { endTalk() }
     }
+    /// Finish recording into a preview, when the phone opted in; this never submits a Hermes task.
+    func finishVoicePreview() {
+        guard voicePreviewEnabled else { return }
+        micUp(cancel: false)
+    }
+    /// Only recording and transcription are cancellable here. A submitted Hermes order is never called cancelled.
+    func cancelVoicePreview() {
+        guard voicePreviewEnabled else { return }
+        let pending = voicePreviewPending
+        voicePreviewGeneration += 1
+        voicePreviewTask?.cancel(); voicePreviewTask = nil; voicePreviewPending = false
+        if listening || g.mode == .talk {
+            g.down = false; g.mode = .none; rig.talkSlide = 0
+            cancelTalk()
+        }
+        if pending {
+            if controller.talk == .sending { controller.talk = .none }
+            controller.flushHeld()
+        }
+    }
     var listening: Bool { controller.talk == .listening }
     /// Typed words, sent as if said; nil when they couldn't go.
-    func send(text: String, files: [String] = []) async -> RouteResult? {
+    func send(text: String, files: [String] = [], approval: String? = nil) async -> RouteResult? {
         controller.orderSent()
         speaker.stop()
-        let r = await hub.say(text, agent: controller.agent, files: files)
+        let r = await hub.say(text, agent: controller.agent, approval: approval, files: files)
         if r == nil { Haptics.play(.failure); tell(hub.connected ? "Couldn't send that. Try again." : "Can't reach your Mac.") }
         return r
     }

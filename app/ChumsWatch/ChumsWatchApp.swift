@@ -54,7 +54,6 @@ struct ChumsScreen: View {
     @State private var chatOpen = false                       // the conversation card is up
     private static let chatTop = 30.0
     @State private var chatPull = 0.0
-    @State private var chatDrop = 0.0
     @State private var pulling = false
     @State private var viewing: Artifact?                     // open full screen
     @State private var toast: (artifact: Artifact, line: String)?      // just arrived: a pill above the handle
@@ -77,7 +76,7 @@ struct ChumsScreen: View {
             // frame); it holds still only under the settings and a picture, which cover it. Noodle's frames and Pix's
             // pixels change at most 24 times a second, so they draw at 30; so do the Eyes when nothing moves fast
             TimelineView(.animation(minimumInterval: reduced ? 1 : CharacterKind(id: character)?.framed == true || calm || chatOpen || pulling ? 1.0 / 30 : nil,
-                                    paused: showSettings || viewing != nil)) { tl in
+                                    paused: chatOpen || showSettings || viewing != nil)) { tl in
                 Canvas { ctx, size in
                     let t0 = CFAbsoluteTimeGetCurrent()
                     model.frame(tl.date)
@@ -117,9 +116,19 @@ struct ChumsScreen: View {
                                      crown: $crown, focused: $characterFocused))
         }
         .overlay(alignment: .bottom) {
-            // the handle: always there; pull it up for the conversation
-            Grabber(quiet: true).padding(.bottom, 5)
-                .opacity(reduced || chatOpen ? 0 : 1).allowsHitTesting(false)
+            // Tap the handle to open the conversation; a background swipe can still open it.
+            if !chatOpen && !reduced {
+                Button {
+                    model.cancelTouch()
+                    pulling = false
+                    chatPull = 0
+                    withAnimation(.snappy(duration: 0.28)) { chatOpen = true }
+                } label: {
+                    Grabber(quiet: true).frame(width: 90, height: 30, alignment: .bottom).padding(.bottom, 5)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain).accessibilityLabel("Ouvrir la conversation")
+            }
         }
         .overlay(alignment: .bottom) {
             // another agent's news: a tap goes to that agent, and opens what it showed you
@@ -142,37 +151,7 @@ struct ChumsScreen: View {
             }
         }
         .overlay {
-            if chatOpen || chatPull > 0 {
-                GeometryReader { g in
-                    // the card stops under the clock (watchOS draws the time over everything)
-                    ChatPanel(lines: model.conversation, open: open, scroll: chatScroll,
-                              listening: model.listening, sending: model.controller.talk == .sending,
-                              talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
-                              cancel: { model.micUp(cancel: true) },
-                              close: { withAnimation(.snappy(duration: 0.25)) { chatOpen = false; chatDrop = 0 } },
-                              reportScroll: { hub.event($0) })
-                        .frame(height: g.size.height - Self.chatTop)
-                        .offset(y: chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull))
-                        .overlay(alignment: .top) {
-                            // Only the grabber dismisses the card. A broad invisible drag zone
-                            // over the first messages steals the ScrollView's finger gestures.
-                            Color.clear.frame(height: 22).contentShape(Rectangle())
-                                .offset(y: chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull))
-                                .gesture(DragGesture()
-                                    .onChanged { chatDrop = max(0, $0.translation.height) }
-                                    .onEnded { v in
-                                        withAnimation(.snappy(duration: 0.25)) {
-                                            if chatDrop > 50 || v.predictedEndTranslation.height > 120 { chatOpen = false }
-                                            chatDrop = 0
-                                        }
-                                    })
-                        }
-                }
-                .transition(.move(edge: .bottom))
-            }
-        }
-        .overlay {
-            if let a = viewing {
+            if let a = viewing, !chatOpen {
                 ArtifactViewer(a: a) { withAnimation(.snappy(duration: 0.25)) { viewing = nil } }
                     .transition(.scale(scale: 0.86).combined(with: .opacity))
             }
@@ -237,6 +216,21 @@ struct ChumsScreen: View {
             }
         }
         .onChange(of: keepOn.problem, initial: true) { _, v in model.controller.notice = v }
+        .sheet(isPresented: $chatOpen, onDismiss: {
+            pulling = false
+            chatPull = 0
+            if model.listening { model.micUp(cancel: true) }
+            characterFocused = viewing == nil && !showSettings
+        }) {
+            ChatPanel(lines: model.conversation, open: open, scroll: chatScroll,
+                      listening: model.listening, sending: model.controller.talk == .sending,
+                      talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
+                      cancel: { model.micUp(cancel: true) },
+                      close: { chatOpen = false })
+                .sheet(item: $viewing) { artifact in
+                    ArtifactViewer(a: artifact) { viewing = nil }
+                }
+        }
         .sheet(isPresented: $showSettings) {
             AgentsView(agents: hub.state?.agents ?? Agents.known, active: $agent,
                        settings: AnyView(SettingsView(character: $character, mode: $mode, demo: $demo, voice: $voice, stayOn: $stayOn, keepOn: keepOn, report: { hub.event($0) })),
@@ -251,6 +245,7 @@ struct ChumsScreen: View {
             // the frame rate follows the staged character: full while something moves fast, 30 when it's still
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(200))
+                guard !chatOpen, !showSettings, viewing == nil else { continue }
                 let c = model.rig.staged?.calm ?? false
                 if c != calm { calm = c }
             }
@@ -357,7 +352,7 @@ struct ChumsScreen: View {
             await wait(4.2)
             await tap(pt(16, 18)) { withAnimation(.snappy(duration: 0.25)) { viewing = nil } }
         }
-        // the conversation: pull the handle up, scroll back to the start with a finger, back down, and drag it away
+        // The conversation: open it, scroll back and forward, then tap the handle to close.
         func conversation() async {
             await wait(1.2)
             let h = pt(99, 232)
@@ -376,8 +371,8 @@ struct ChumsScreen: View {
             }
             let top = pt(99, Self.chatTop / Renderer.fit(size).s + 8)
             await down(top)
-            await slide(to: pt(99, 170), over: 0.4) { p, _ in chatDrop = max(0, p.y - top.y) }
-            withAnimation(.snappy(duration: 0.25)) { chatOpen = false; chatDrop = 0 }
+            await wait(0.14)
+            withAnimation(.snappy(duration: 0.25)) { chatOpen = false }
             await up(); await wait(1.5)
         }
 

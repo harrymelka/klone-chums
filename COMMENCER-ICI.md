@@ -147,7 +147,7 @@ Pour reconstruire : `klone/build-mac.sh`. L’app signée reste dans
 Harry a choisi la piste **B, fond clair**, avec le **fil visible** de C :
 personnage en grand sur un fond chaud, sans carré de montre. Le canevas passe sous
 les barres du système. Le fil est un panneau superposé : tirer sa poignée pour
-changer sa hauteur, toucher la croix pour le cacher, puis l’icône discussion pour
+changer sa hauteur, tirer vers le bas ou toucher hors du fil pour le cacher, puis l’icône discussion pour
 le retrouver. Les messages reçus sont à gauche, les messages envoyés à droite.
 Le personnage reste présent, réduit et remonté, pendant la saisie.
 
@@ -162,3 +162,11 @@ Sur le cadran Watch, une seule indication remplace le doublon micro/Prêt :
 **Parler** au repos, ou l’état courant. Noodle change de pose ; un **?** apparaît
 s’il attend une réponse. Les transitions sont courtes et dépendent de watchOS ;
 l’animation continue est réservée à l’app ouverte et au compagnon Mac.
+
+## Vocal iPhone : relire avant de transmettre
+
+**Parler** démarre la capture, **Annuler** la supprime et **Terminer** demande
+uniquement la transcription au Whisper partagé. Cette transcription peut encore
+être annulée. Le résultat devient un brouillon modifiable : **Envoyer** transmet
+la demande à Hermès, **Annuler** supprime ce brouillon vocal. Une demande déjà
+transmise à Hermès ne peut pas être retirée par ces commandes.

@@ -23,3 +23,11 @@ bubbles sit left with character image, user bubbles right with person icon.
 Use illustrated named rows for avatar selection and a plus menu for attachments.
 The original dark HomeView is retained for upstream merges. On Mac the companion
 is transparent; its separate conversation panel is dark. Watch retains native dark.
+
+## Précisions après essai iPhone
+
+Only the character canvas extends under the physical status bar. Top controls
+respect the window safe area. Keep the conversation overlay light and unobtrusive:
+no large title or close/expand toolbar. Dismiss downward or by tapping outside.
+Voice capture exposes a text Cancel action and finishes into a reviewable draft
+before any Hermes submission.

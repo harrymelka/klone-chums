@@ -23,136 +23,77 @@ struct ChatLine: Identifiable, Equatable {
     }
 }
 
-/// The conversation as a card of Liquid Glass that slides up from the handle at the bottom of the screen: the
-/// character stays visible through it, blurred. It opens at the newest message; the crown scrolls back. Dragging its
-/// top edge down puts it away. The balloons are nearly solid so the text reads over anything behind the glass.
+/// A plain native conversation surface. The system ScrollView owns touch and Crown input;
+/// its header and composer are siblings so neither overlays the scrolling messages.
 struct ChatPanel: View {
     let lines: [ChatLine]
     var open: (Artifact) -> Void = { _ in }
-    /// Simulator captures: scroll to a line (or "end"), as a finger would, over that many seconds.
+    /// Simulator captures only: request a particular line without handling live scroll input.
     var scroll: (id: String, seconds: Double)? = nil
     var listening = false
     var sending = false
     var talk: (() -> Void)? = nil
     var cancel: (() -> Void)? = nil
     var close: (() -> Void)? = nil
-    var reportScroll: ((String) -> Void)? = nil
-    @FocusState private var focused: Bool
-    @State private var position = ScrollPosition()
-    @State private var crown = 0.0
-    @State private var scrollMetrics = ChatScrollMetrics()
-    @State private var lastScrollReport = Date.distantPast
-
-    private struct ChatScrollMetrics: Equatable {
-        var offset: CGFloat = 0
-        var minimum: CGFloat = 0
-        var maximum: CGFloat = 0
-        var viewport: CGFloat = 0
-    }
-
-    static let card = UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22)
 
     var body: some View {
-        // One card owns the thread and composer. Only the messages scroll, so the controls
-        // stay inside the card rather than looking like a separate strip below it.
-        GeometryReader { geometry in
-            VStack(spacing: 0) {
-                ZStack(alignment: .top) {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            VStack(spacing: 8) {
-                                Color.clear.frame(height: 18).id("top")
-                                if lines.isEmpty {
-                                    Text(talk == nil ? "Hold the screen and talk; the conversation shows up here." : "Touche Parler pour commencer la conversation.")
-                                        .font(.system(size: 14)).foregroundStyle(Pal.gray)
-                                        .multilineTextAlignment(.center).padding(.top, 16)
-                                }
-                                ForEach(lines) { l in bubble(l).id(l.id) }
-                                Color.clear.frame(height: 12).id("end")
-                            }
-                            .padding(.horizontal, 6)
-                        }
-                        // Native finger scrolling remains enabled; the card owns a single explicit
-                        // Crown receiver instead of competing with the character's receiver.
-                        .focusable(false)
-                        .scrollPosition($position)
-                        .onScrollGeometryChange(for: ChatScrollMetrics.self) { geometry in
-                            ChatScrollMetrics(offset: geometry.contentOffset.y,
-                                              minimum: -geometry.contentInsets.top,
-                                              maximum: max(-geometry.contentInsets.top, geometry.contentSize.height - geometry.containerSize.height + geometry.contentInsets.bottom),
-                                              viewport: geometry.containerSize.height)
-                        } action: { old, metrics in
-                            scrollMetrics = metrics
-                            diagnostic("geometry", force: old.viewport == 0 && metrics.viewport > 0)
-                        }
-                        .accessibilityIdentifier("watch-chat-thread")
-                        .task {
-                            // Wait for the overlay to enter the focus tree before taking the Crown.
-                            await Task.yield()
-                            guard !Task.isCancelled else { return }
-                            proxy.scrollTo("end", anchor: .bottom)
-                            focused = true
-                        }
-                        .onChange(of: listening) { focused = true }
-                        .onChange(of: sending) { focused = true }
-                        .onChange(of: lines.count) { withAnimation { proxy.scrollTo("end", anchor: .bottom) } }
-                        .onChange(of: scroll?.id) { _, id in
-                            guard let id, let s = scroll else { return }
-                            withAnimation(.easeInOut(duration: s.seconds)) { proxy.scrollTo(id, anchor: id == "end" ? .bottom : .top) }
-                        }
-                        .mask {
-                            // The last message eases into the fixed composer instead of ending at a hard cut.
-                            if talk != nil {
-                                VStack(spacing: 0) {
-                                    Color.black
-                                    LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                                        .frame(height: 12)
-                                }
-                            } else { Color.black }
-                        }
-                    }
-                    Grabber().padding(.top, 6).allowsHitTesting(false)
-                }
-                // A fixed viewport is essential: if the scroll view measures to its content
-                // height there is no overflow for either a finger or the Crown to move.
-                .frame(height: max(0, geometry.size.height - (talk == nil ? 0 : 58)))
-                if let talk { composer(talk: talk) }
+        VStack(spacing: 0) {
+            if let close {
+                Grabber()
+                    .frame(maxWidth: .infinity, minHeight: 24)
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: close)
+                    .gesture(DragGesture(minimumDistance: 12).onEnded { value in
+                        if value.translation.height > 30 || value.predictedEndTranslation.height > 60 { close() }
+                    })
+                    .accessibilityLabel("Fermer la conversation")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { close() }
             }
-            .frame(width: geometry.size.width, height: geometry.size.height, alignment: .top)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(spacing: 8) {
+                        Color.clear.frame(height: 4).id("top")
+                        if lines.isEmpty {
+                            Text(talk == nil ? "Hold the screen and talk; the conversation shows up here." : "Touche Parler pour commencer la conversation.")
+                                .font(.system(size: 14)).foregroundStyle(Pal.gray)
+                                .multilineTextAlignment(.center).padding(.top, 16)
+                        }
+                        ForEach(lines) { line in bubble(line).id(line.id) }
+                        Color.clear.frame(height: 8).id("end")
+                    }
+                    .padding(.horizontal, 6)
+                }
+                .accessibilityIdentifier("watch-chat-thread")
+                .onAppear { proxy.scrollTo("end", anchor: .bottom) }
+                .onChange(of: lines.last?.id) { old, _ in
+                    // Open initial history at the bottom, and reveal a newly sent message.
+                    // Incoming replies never pull someone away from an older message.
+                    if old == nil || lines.last?.who == .you {
+                        proxy.scrollTo("end", anchor: .bottom)
+                    }
+                }
+                .onChange(of: scroll?.id) { _, id in
+                    guard let id, let scroll else { return }
+                    withAnimation(.easeInOut(duration: scroll.seconds)) {
+                        proxy.scrollTo(id, anchor: id == "end" ? .bottom : .top)
+                    }
+                }
+            }
+            if let talk { composer(talk: talk) }
         }
-        .clipShape(Self.card)
-        .glassEffect(.regular.tint(.black.opacity(0.32)), in: Self.card)
-#if os(watchOS)
-        .focusable().focused($focused)
-        .digitalCrownRotation($crown, from: 0, through: 60, by: 1, sensitivity: .medium,
-                              isContinuous: true, isHapticFeedbackEnabled: true)
-        .onChange(of: crown) { old, new in
-            var delta = new - old
-            if delta > 30 { delta -= 60 } else if delta < -30 { delta += 60 }
-            let target = min(scrollMetrics.maximum, max(scrollMetrics.minimum, scrollMetrics.offset + CGFloat(delta) * 14))
-            position.scrollTo(y: target)
-            diagnostic("crown delta=\(delta) target=\(Int(target))")
-        }
-#endif
-    }
-
-    private func diagnostic(_ event: String, force: Bool = false) {
-        guard let reportScroll else { return }
-        let now = Date()
-        guard force || now.timeIntervalSince(lastScrollReport) >= 1 else { return }
-        lastScrollReport = now
-        reportScroll("chat scroll \(event) viewport=\(Int(scrollMetrics.viewport)) offset=\(Int(scrollMetrics.offset)) min=\(Int(scrollMetrics.minimum)) max=\(Int(scrollMetrics.maximum))")
+        .background(Color.black)
     }
 
     private func composer(talk: @escaping () -> Void) -> some View {
         HStack(spacing: 6) {
             if listening {
-                Button { cancel?(); focused = true } label: {
+                Button { cancel?() } label: {
                     Image(systemName: "xmark").frame(width: 38, height: 44)
                 }
                 .accessibilityLabel("Annuler l’enregistrement")
             }
-            Button { talk(); focused = true } label: {
+            Button(action: talk) {
                 HStack(spacing: 6) {
                     if sending { ProgressView().controlSize(.small) }
                     else { Image(systemName: listening ? "arrow.up" : "mic.fill") }
@@ -174,7 +115,7 @@ struct ChatPanel: View {
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 10).padding(.top, 2).padding(.bottom, 12)
+        .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 8)
     }
 
     @ViewBuilder private func bubble(_ l: ChatLine) -> some View {

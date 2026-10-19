@@ -95,3 +95,10 @@ le journal durable nécessaire à la reprise.
 
 La préparation des builds est protégée par un verrou local, pour éviter les
 collisions de génération entre cibles Mac et iPhone.
+
+L’iPhone utilise également la prévisualisation vocale : son ScreenModel active
+explicitement ce mode. L’arrêt manuel, le maintien relâché et la limite de durée
+produisent tous une transcription seule. Annuler invalide la génération et
+interrompt la tâche URLSession ; un résultat tardif ne recrée aucun brouillon.
+Le brouillon conserve l’identifiant exact de l’accord visible au début de la
+capture pour son éventuel envoi. La Watch n’active pas ce mode.

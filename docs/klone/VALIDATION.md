@@ -161,3 +161,48 @@ vocal restent à tester avec Harry. Installation n’équivaut pas à validation
   dimensions du renderer artifacts échouent également sur HEAD initial 48435ff
   (1200 au lieu de 780). Aucun fichier de ce renderer modifié ici.
 - Deux préparations simultanées réussies après ajout du verrou local.
+
+## Régression Watch confirmée puis retour au défilement natif
+
+Harry confirme que la Crown remontait le fil dans les deux sens et que le doigt
+et l’ouverture restaient défaillants. Les logs montrent bien un viewport de
+163 points pour plus de 2300 points défilables ; l’hypothèse précédente d’une
+absence de hauteur n’explique donc pas ce comportement. Les offsets reviennent
+brutalement vers le début pendant le pilotage manuel.
+
+Le nouveau correctif supprime ScrollPosition et digitalCrownRotation du chat :
+le ScrollView natif reçoit le focus, le suivi géométrique reste en lecture seule.
+Le fil n’est plus inséré pendant le geste d’ouverture, une vraie poignée bouton
+l’ouvre, et aucune gesture de fermeture ne recouvre ses messages. Compilation
+Release iPhone/Watch réussie. Aucun runtime simulateur n’est installé sur ce Mac ;
+le test des gestes physiques reste à confirmer, sans l’assimiler au build.
+
+Le nouvel essai physique échoue aussi : indicateur clignotant, Crown sans effet,
+fermeture par balayage absente. Cette version n’est donc pas validée. Le chat
+Watch est repris dans une présentation système séparée du canevas, avec retrait
+du focus explicite et des mesures de scroll écrites en état local.
+
+## iPhone : contrôles, panneau et relecture vocale
+
+- Canevas isolé dans un overlay de taille fixe, pour ne plus agrandir la mesure
+  de la pile de commandes. Header positionné par rapport à la safe area réelle
+  de la fenêtre, sans changer l’étendue du canevas.
+- Gros titre et toolbar du fil supprimés. Fermeture par poignée vers le bas,
+  surdéfilement natif depuis le début du fil ou toucher extérieur ; cette couche
+  bloque les interactions avec le personnage pendant la fermeture.
+- Capture iPhone opt-in vers `/v1/transcribe` : Annuler, Terminer, puis brouillon
+  éditable et Envoyer. L’annulation de transcription invalide le résultat tardif.
+  Aucun enregistrement ambiant réalisé pour vérifier ces changements.
+- Six tests `test:klone` réussis ; compilation Release iPhone/Watch réussie après
+  correction d’une signature d’action d’accessibilité. Diff et scan secrets propres.
+- Installation iPhone confirmée. Lancement de contrôle bloqué par le verrouillage
+  physique ; nouvelle installation Watch en cours après une expiration du tunnel.
+  Les gestes et l’annulation vocale restent à confirmer sur appareil.
+
+Après déverrouillage confirmé par Harry : lancement iPhone réussi, installation
+et lancement Watch réussis. Capture iPhone physique : commandes sous la barre
+système, canevas complet, fil superposé sans titre/toolbar et poignée présents.
+Le lancement de capture forçait le fil visible via argument temporaire ; l’app
+a ensuite été relancée normalement. Aucun micro démarré par ces contrôles.
+La fermeture gestuelle, la Crown Watch et l’annulation vocale restent à confirmer
+en usage ; aucune réussite physique n’est déduite de la seule installation.

@@ -300,6 +300,29 @@ final class HubClient {
         return await post("/v1/utterance", body: data, contentType: "audio/m4a", headers: h)
     }
 
+    /// Transcribes locally without submitting any order or approval to Hermes.
+    /// Cancellation propagates to URLSession instead of being converted to an apparent failure.
+    func transcribe(audio url: URL) async throws -> String {
+        struct Preview: Decodable { let transcript: String?; let error: String? }
+        try Task.checkCancellation()
+        let data = try Data(contentsOf: url)
+        var r = request("/v1/transcribe", method: "POST", body: data, contentType: "audio/m4a", timeout: 90)
+        r.setValue(Self.device, forHTTPHeaderField: "X-Chums-Device")
+        let (responseData, response) = try await urlSession.data(for: r)
+        try Task.checkCancellation()
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let preview = try? JSONDecoder().decode(Preview.self, from: responseData)
+        guard code == 200 else {
+            if code == 401 { lastError = "Hub refused the token" }
+            throw NSError(domain: "KloneTranscription", code: code, userInfo: [NSLocalizedDescriptionKey: preview?.error ?? "La transcription est indisponible. Réessaie."])
+        }
+        let text = preview?.transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !text.isEmpty else {
+            throw NSError(domain: "KloneTranscription", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucune parole reconnue. Réessaie en parlant plus près du micro."])
+        }
+        return text
+    }
+
     /// One line for the hub's log (~/.chums/watch-events.log): what the watch did, so it can be checked from the Mac.
     func event(_ text: String) {
 #if targetEnvironment(simulator)
