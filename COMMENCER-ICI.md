@@ -56,7 +56,7 @@ Contrôle en lecture seule : `python3 klone/check.py`.
 
 ## Limites à connaître pour cet essai
 
-- Pas encore de pièces jointes vers Hermès (l’envoi est refusé explicitement).
+- Photos iPhone prises en charge ; autres documents encore refusés explicitement.
 - Pas de notifications push lorsque l’app iPhone est fermée.
 - Un seul échange à la fois ; attendre la réponse avant d’envoyer la suite.
 - Le Mac, Docker, Hermès et la connexion privée doivent rester disponibles.
@@ -123,8 +123,10 @@ existante dans le cadran si watchOS conserve son ancien aperçu en cache.
 
 Double-cliquer **Lancer le compagnon Mac.command**. Le personnage apparaît sur
 le bureau, sans fond noir. Le bouton **Parler** ouvre la conversation et demande
-l’autorisation macOS du microphone au premier usage. Cliquer ensuite **Envoyer**
-ou **Annuler**. Un clic sur le personnage ouvre seulement le fil.
+l’autorisation macOS du microphone au premier usage. **Pause** et **Reprendre**
+contrôlent la capture ; **Terminer** lance la transcription seule. Relire ou modifier
+le texte, puis **Envoyer** pour le transmettre à Hermès, ou **Annuler**. Un clic sur
+le personnage ouvre seulement le fil.
 
 La petite poignée au-dessus du personnage permet de le déplacer. Le menu Klone
 Chums dans la barre de menus permet de retrouver le fil, masquer le personnage,
@@ -143,8 +145,16 @@ Pour reconstruire : `klone/build-mac.sh`. L’app signée reste dans
 ## Présentation iPhone choisie
 
 Harry a choisi la piste **B, fond clair**, avec le **fil visible** de C :
-Noodle en grand sur un fond chaud, sans carré de montre, derniers échanges
-défilants en dessous, commandes fixes en bas. Une commande agrandit le fil.
+personnage en grand sur un fond chaud, sans carré de montre. Le canevas passe sous
+les barres du système. Le fil est un panneau superposé : tirer sa poignée pour
+changer sa hauteur, toucher la croix pour le cacher, puis l’icône discussion pour
+le retrouver. Les messages reçus sont à gauche, les messages envoyés à droite.
+Le personnage reste présent, réduit et remonté, pendant la saisie.
+
+Le bouton **+** donne accès aux photos et à la saisie. Choisir jusqu’à quatre
+photos, vérifier leurs aperçus puis envoyer ; un échec conserve le brouillon.
+Le sélecteur d’apparence affiche chaque personnage avec sa photo et son nom ;
+changer d’apparence conserve la même conversation Hermès.
 La proposition interactive est dans `docs/klone/design/index.html` (paramètre
 `?selected=1` pour le choix retenu). Les textes des maquettes sont fictifs.
 

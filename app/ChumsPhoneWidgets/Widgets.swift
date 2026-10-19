@@ -18,13 +18,13 @@ struct ChumsWidgets: WidgetBundle {
 struct AgentProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> ChumsEntry { ChumsEntry(date: .now, state: WidgetHub.sample, pick: nil) }
     func snapshot(for config: PickAgent, in context: Context) async -> ChumsEntry {
-        let s = context.isPreview ? WidgetHub.sample : (await WidgetHub.state() ?? WidgetHub.sample)
+        let s = context.isPreview ? WidgetHub.sample : (await WidgetHub.state())
         return await ChumsEntry.make(s, pick: config.agent?.id, family: context.family, size: context.displaySize)
     }
     func timeline(for config: PickAgent, in context: Context) async -> Timeline<ChumsEntry> {
         let s = await WidgetHub.state()
         // sooner while something's happening; the app refreshes them too whenever it sees a change
-        let busy = s?.agents.contains { $0.needs || $0.status == "working" } ?? false
+        let busy = !(s?.approvals.isEmpty ?? true) || (s?.agents.contains { $0.needs || ["working", "waiting", "compacting"].contains($0.status) } ?? false)
         let e = await ChumsEntry.make(s, pick: config.agent?.id, family: context.family, size: context.displaySize)
         return Timeline(entries: [e], policy: .after(.now.addingTimeInterval(busy ? 300 : 900)))
     }
@@ -33,12 +33,12 @@ struct AgentProvider: AppIntentTimelineProvider {
 struct TeamProvider: TimelineProvider {
     func placeholder(in context: Context) -> ChumsEntry { ChumsEntry(date: .now, state: WidgetHub.sample, pick: nil) }
     func getSnapshot(in context: Context, completion: @escaping (ChumsEntry) -> Void) {
-        Task { completion(ChumsEntry(date: .now, state: context.isPreview ? WidgetHub.sample : (await WidgetHub.state() ?? WidgetHub.sample), pick: nil)) }
+        Task { completion(ChumsEntry(date: .now, state: context.isPreview ? WidgetHub.sample : (await WidgetHub.state()), pick: nil)) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ChumsEntry>) -> Void) {
         Task {
             let s = await WidgetHub.state()
-            let busy = s?.agents.contains { $0.needs || $0.status == "working" } ?? false
+            let busy = !(s?.approvals.isEmpty ?? true) || (s?.agents.contains { $0.needs || ["working", "waiting", "compacting"].contains($0.status) } ?? false)
             completion(Timeline(entries: [ChumsEntry(date: .now, state: s, pick: nil)], policy: .after(.now.addingTimeInterval(busy ? 300 : 900))))
         }
     }
@@ -52,8 +52,8 @@ struct AgentWidget: Widget {
             AgentWidgetView(entry: e).containerBackground(.black, for: .widget)
         }
         .contentMarginsDisabled()                                   // the watch's screen goes to the edges
-        .configurationDisplayName("Agent")
-        .description("One agent: what it's doing, Allow or Deny what it asks, and Talk.")
+        .configurationDisplayName("Compagnon Hermès")
+        .description("Ton compagnon change de pose selon son activité. Parle-lui ou réponds à une demande d’autorisation.")
         .supportedFamilies([.systemSmall, .systemMedium, .accessoryCircular, .accessoryRectangular, .accessoryInline])
     }
 }
@@ -66,7 +66,7 @@ struct TeamWidget: Widget {
             TeamWidgetView(entry: e).containerBackground(.black, for: .widget)
         }
         .configurationDisplayName("Agents")
-        .description("Every agent at a glance; a tap opens one. What needs you comes first.")
+        .description("Tes compagnons, leurs questions et leurs tâches en cours.")
         .supportedFamilies([.systemLarge, .systemMedium])
     }
 }
@@ -77,10 +77,10 @@ struct TalkControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "chums.talk") {
             ControlWidgetButton(action: TalkToAgent()) {
-                Label("Talk to Chums", systemImage: "waveform")
+                Label("Parler à Hermès", systemImage: "waveform")
             }
         }
-        .displayName("Talk to Chums")
-        .description("Opens Chums listening to the agent you talk to.")
+        .displayName("Parler à Hermès")
+        .description("Ouvre le micro de ton compagnon Hermès.")
     }
 }

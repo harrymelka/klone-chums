@@ -58,3 +58,15 @@ aucune fusion future n’est présentée comme déjà validée.
 - Quatre poses PNG issues du rig dans `Shared/Characters.xcassets`, utilisées
   par le widget Watch. Le générateur local ajoute le schéma URL de la Watch.
 - Maquettes et choix utilisateur dans `docs/klone/design/`.
+
+## Retours d’usage : médias et interactions
+
+- `KlonePhoneComponents.swift` : bulles et composants du panneau iPhone propre au fork.
+- `Chat.swift` et `ChumsWatchApp.swift` : viewport borné, Crown explicite, exclusion
+  de la Crown du personnage quand le chat est ouvert et footer intégré. Les APIs
+  Crown sont conditionnées à watchOS car le fichier est partagé avec iPhone.
+- `Controller.swift` : invitations de repos selon heure et activité réelle.
+- Widgets iPhone/Watch : transitions d’état et poses ; pas de boucle continue.
+- `MacModel` : pause/reprise et transcription avant envoi via la route dédiée.
+- `hub/hub.mjs`, `klone/attachments.mjs`, `klone/hermes.mjs` : prévisualisation
+  Whisper et transport multimodal des photos, même profil/session.

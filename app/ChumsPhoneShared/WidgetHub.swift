@@ -120,14 +120,26 @@ enum WidgetHub {
     }
 }
 
-/// Words for an agent's status, the same as the watch's.
+/// An invitation, never a claimed event or a fabricated message from Hermès.
+/// Only the widget's observation time and known conversation timestamps affect it.
+func companionInvitation(in state: WState? = nil, at date: Date = .now) -> String {
+    let last = state?.spoken.compactMap(\.at).max().map { Date(timeIntervalSince1970: $0 / 1000) }
+    if let last, date.timeIntervalSince(last) >= 4 * 60 * 60 { return "Quoi de neuf ?" }
+    switch Calendar.current.component(.hour, from: date) {
+    case 5..<12: return "On fait quoi aujourd’hui ?"
+    case 12..<18: return "On avance sur quoi ?"
+    default: return "Quoi de neuf ?"
+    }
+}
+
+/// Words for an agent's real status. Questions and approvals always take precedence over the invitation.
 func statusWords(_ a: WAgent) -> String {
     switch a.status {
-    case "offline": return "Not running on your Mac"
-    case "working": return a.line.map { "Working · \($0)" } ?? "Working"
-    case "compacting": return "Tidying its memory"
-    case "limited": return "Rate limited"
-    case "blocked": return a.line.map { "Stuck: \($0)" } ?? "Stuck"
-    default: return a.needs ? (a.line.map { "Needs you: \($0)" } ?? "Needs you") : (a.line ?? "Idle")
+    case "offline": return "Je ne joins pas le Mac"
+    case "working": return a.line.map { "Je m’en occupe · \($0)" } ?? "Je m’en occupe"
+    case "compacting": return "Je range mes idées"
+    case "limited": return "Je dois patienter"
+    case "blocked": return a.line.map { "Un coup de main ? \($0)" } ?? "Un coup de main ?"
+    default: return a.needs || a.status == "waiting" ? (a.line ?? "J’ai une question") : companionInvitation()
     }
 }

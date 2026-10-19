@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import crypto from 'node:crypto'
+import { photoInput } from './attachments.mjs'
 const clean = text => String(text ?? '').replace(/^\s*\[\[aura:[^\n]*\]\]\s*/, '').trim()
 const pause = ms => new Promise(r => setTimeout(r, ms))
 export class HermesRunner {
@@ -65,9 +66,9 @@ export class HermesRunner {
     if (item.type === 'verdict') return this.decide(item)
     if (item.type !== 'order') return
     if (this.active) throw Object.assign(new Error('Hermès traite déjà une demande. Attends sa réponse avant un nouvel envoi.'), { status: 409 })
-    if (item.files?.length) throw Object.assign(new Error('Les pièces jointes Hermès seront intégrées à la prochaine étape. Envoie du texte ou un message vocal.'), { status: 400 })
+    const input = photoInput(item.said, item.files, this.hub.dir)
     this.active = { endpoint: this.cfg.endpoint, session: this.cfg.sessionID, requestID: item.requestID || `klone-${crypto.randomUUID()}`,
-      input: item.said, device: item.device ?? 'phone', createdAt: Date.now(), runID: null }
+      input, device: item.device ?? 'phone', createdAt: Date.now(), runID: null }
     this.persist(); this.work()
   }
   work() {
@@ -82,7 +83,7 @@ export class HermesRunner {
         if (!turn.runID) {
           if (Date.now() - turn.createdAt >= 23 * 3600_000) throw new Error('Reprise trop ancienne : vérifie l’historique Hermès avant un nouvel envoi.')
           const r = await this.json('v1/runs', { input: turn.input, session_id: turn.session,
-            instructions: 'Réponds en français. Tu conserves ta personnalité, ta mémoire et tes outils Hermès. Le client est Klone Chums, sur iPhone ou Apple Watch. Réponds clairement et brièvement par défaut, sans balise technique aura ni outil chums_reply.' }, turn.requestID)
+            instructions: 'Réponds en français. Tu conserves ta personnalité, ta mémoire et tes outils Hermès. Le client est Klone Chums, sur iPhone, Apple Watch ou Mac. Réponds clairement et brièvement par défaut, sans balise technique aura ni outil chums_reply.' }, turn.requestID)
           if (!r.run_id) throw new Error('Réponse Hermès incompatible.')
           turn.runID = r.run_id; this.persist()
         }

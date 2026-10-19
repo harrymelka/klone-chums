@@ -160,7 +160,11 @@ final class Controller {
         if mine.contains(where: { $0.status == "working" }) {
             return (.working, false, "WORKING", "", "")
         }
-        return (.idle, false, "", "", "")
+        let latest = (all.spoken.filter { $0.owner == agent }.compactMap(\.at).max() ?? 0) / 1000
+        let hour = Calendar.current.component(.hour, from: Date())
+        let invitation = latest > 0 && Date().timeIntervalSince1970 - latest > 4 * 3600 ? "Alors, quoi de neuf ?"
+            : hour < 11 ? "On fait quoi aujourd’hui ?" : hour >= 21 ? "On discute un peu ?" : "Quoi de neuf ?"
+        return (.idle, false, "", invitation, "")
     }
     /// What the hub calls itself on the lines it says on its own (an answered approval, which session to ask).
     static let hub = "Chums"

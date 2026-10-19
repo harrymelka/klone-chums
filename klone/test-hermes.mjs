@@ -70,7 +70,38 @@ test('uncertain submission retries the same idempotency key',async()=>{
   f.state.status='completed';await wait(()=>!r.active)
  } finally {r.stop();await f.close()}
 })
-test('attachments refused before a Hermes task is created',async()=>{
+test('photos reach the same Hermes run as inline images and survive journal resume',async()=>{
  const f=await fixture();const r=f.create()
- try {await r.start();assert.throws(()=>r.deliver({type:'order',said:'file',files:['/private/file']}),/pièces jointes/);assert.equal(f.state.submitted,0)}finally{r.stop();await f.close()}
+ try {
+  fs.mkdirSync(path.join(f.dir,'uploads'))
+  const file=path.join(f.dir,'uploads','photo.png')
+  const bytes=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/zfkAAAAASUVORK5CYII=','base64')
+  fs.writeFileSync(file,bytes)
+  await r.start();r.deliver({type:'order',said:'Regarde cette photo',files:[file],device:'phone'})
+  await wait(()=>f.state.posts.length)
+  const input=f.state.posts[0].body.input
+  assert.equal(f.state.posts[0].body.session_id,'test-session')
+  assert.equal(input[0].role,'user');assert.equal(input[0].content[0].text,'Regarde cette photo')
+  assert.equal(input[0].content[1].image_url.url,'data:image/png;base64,'+bytes.toString('base64'))
+  assert.ok(!JSON.stringify(input).includes(f.dir))
+  assert.deepEqual(JSON.parse(fs.readFileSync(r.file)).input,input)
+  f.state.status='completed';await wait(()=>!r.active)
+ } finally {r.stop();await f.close()}
+})
+test('invalid files, escaped paths and oversized photos never create a Hermes run',async()=>{
+ const f=await fixture();const r=f.create()
+ try {
+  const uploads=path.join(f.dir,'uploads');fs.mkdirSync(uploads)
+  const outside=path.join(f.dir,'private.png');fs.writeFileSync(outside,Buffer.from([137,80,78,71,13,10,26,10]))
+  const file=path.join(uploads,'invalid.png');fs.writeFileSync(file,'not an image')
+  const link=path.join(uploads,'linked.png');fs.symlinkSync(outside,link)
+  await r.start()
+  assert.throws(()=>r.deliver({type:'order',said:'file',files:[file]}),/photos JPEG/)
+  assert.throws(()=>r.deliver({type:'order',said:'file',files:[link]}),/ne provient pas/)
+  assert.throws(()=>r.deliver({type:'order',said:'file',files:[outside]}),/ne provient pas/)
+  const large=Buffer.alloc(4*1024*1024);Buffer.from([137,80,78,71,13,10,26,10]).copy(large)
+  fs.writeFileSync(file,large)
+  assert.throws(()=>r.deliver({type:'order',said:'file',files:[file,file]}),/volumineuses/)
+  assert.equal(r.active,null);assert.equal(f.state.submitted,0)
+ }finally{r.stop();await f.close()}
 })

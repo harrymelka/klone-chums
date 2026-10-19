@@ -18,21 +18,21 @@ struct ChumsEntry: TimelineEntry {
         var e = ChumsEntry(date: .now, state: state, pick: pick)
         guard let a = e.agent, family == .systemSmall || family == .systemMedium else { return e }
         let h = size.height, sz = family == .systemMedium ? CGSize(width: (h * DESIGN.width / DESIGN.height).rounded(), height: h) : size
-        e.screen = await WatchScreen.image(a, in: state, size: sz)
+        e.screen = await WatchScreen.image(a, in: state, size: sz, date: e.date)
         return e
     }
 }
 
 /// What an agent is doing, in a word or two.
 func shortStatus(_ a: WAgent) -> String {
-    if a.needs { return "Needs you" }
+    if a.needs || a.status == "waiting" { return "J’ai une question" }
     switch a.status {
-    case "offline": return "Not running"
-    case "working": return "Working"
-    case "compacting": return "Tidying its memory"
-    case "limited": return "Rate limited"
-    case "blocked": return "Stuck"
-    default: return "Idle"
+    case "offline": return "Je ne joins pas le Mac"
+    case "working": return "Je m’en occupe"
+    case "compacting": return "Je range mes idées"
+    case "limited": return "Je dois patienter"
+    case "blocked": return "Un coup de main ?"
+    default: return companionInvitation()
     }
 }
 
@@ -41,46 +41,71 @@ struct AgentWidgetView: View {
     var shownAs: WidgetFamily?                       // set by the app's pictures; in a widget, the widget's own size
     @Environment(\.widgetFamily) private var widgetFamily
     private var family: WidgetFamily { shownAs ?? widgetFamily }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isLuminanceReduced) private var luminanceReduced
 
     var body: some View {
         if let a = entry.agent {
             switch family {
             case .accessoryCircular: circular(a)
             case .accessoryRectangular: rectangular(a)
-            case .accessoryInline: Text("\(a.name) · \(a.needs ? "Needs you" : statusWords(a))")
+            case .accessoryInline: Text("\(a.name) · \(headline(a))")
             case .systemMedium: medium(a)
             default: small(a)
             }
         } else {
             VStack(spacing: 4) {
                 Image(systemName: "wifi.exclamationmark").font(.title3)
-                Text("Can't reach your Mac").font(.caption).multilineTextAlignment(.center)
+                Text("Je ne joins pas le Mac").font(.caption).multilineTextAlignment(.center)
             }
             .foregroundStyle(.secondary)
             .padding(12)
         }
     }
 
-    /// The watch's screen, as on the wrist; its face on a dark circle until it's drawn.
+    private func headline(_ a: WAgent) -> String {
+        if entry.state?.approval(for: a.id) != nil { return "Tu m’autorises ?" }
+        if a.status == "idle" && !a.needs { return companionInvitation(in: entry.state, at: entry.date) }
+        return shortStatus(a)
+    }
+
+    private func poseID(_ a: WAgent) -> String {
+        // Do not include rev/date: ordinary polls must not replay the transition.
+        "\(a.id):\(a.character):\(a.status):\(a.needs):\(entry.state?.approval(for: a.id)?.requestId ?? "")"
+    }
+
+    /// State-specific snapshots share the app renderer. WidgetKit animates their replacement,
+    /// not a continuously running Canvas. Always On and Reduce Motion keep the update still.
     @ViewBuilder private func screen(_ a: WAgent) -> some View {
-        if let img = entry.screen {
-            Image(uiImage: img).resizable().scaledToFit()
-        } else {
-            WidgetFace(character: a.character, size: 64).frame(maxWidth: .infinity, maxHeight: .infinity)
+        ZStack {
+            Group {
+                if let img = entry.screen { Image(uiImage: img).resizable().scaledToFit() }
+                else { WidgetFace(character: a.character, size: 64).frame(maxWidth: .infinity, maxHeight: .infinity) }
+            }
+            .id(poseID(a))
+            .transition(reduceMotion || luminanceReduced ? .identity : .opacity.combined(with: .scale(scale: 0.96)))
+            if a.needs || a.status == "waiting" || entry.state?.approval(for: a.id) != nil {
+                Text("?").font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundStyle(Pal.amber)
+                    .padding(8).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                    .accessibilityLabel(entry.state?.approval(for: a.id) != nil ? "Autorisation demandée" : "Une question pour toi")
+                    .transition(.opacity)
+            }
         }
+        .animation(reduceMotion || luminanceReduced ? nil : .easeOut(duration: 0.45), value: poseID(a))
     }
 
     /// Talk (the microphone), or Deny and Allow when it asks: round buttons over the screen's bottom right corner.
     @ViewBuilder private func cornerButtons(_ a: WAgent) -> some View {
         if let ap = entry.state?.approval(for: a.id) {
             HStack(spacing: 6) {
-                Button(intent: AnswerApproval(ap.requestId, allow: false)) { RoundIcon(symbol: "xmark", light: false) }
-                Button(intent: AnswerApproval(ap.requestId, allow: true)) { RoundIcon(symbol: "checkmark", light: true) }
+                Button(intent: AnswerApproval(ap.requestId, allow: false)) { RoundIcon(symbol: "xmark", light: false) }.accessibilityLabel("Refuser cette demande")
+                Button(intent: AnswerApproval(ap.requestId, allow: true)) { RoundIcon(symbol: "checkmark", light: true) }.accessibilityLabel("Autoriser cette demande")
             }
             .buttonStyle(.plain)
         } else {
             Link(destination: URL(string: "chums://talk/\(a.id)")!) { RoundIcon(symbol: "mic.fill", light: true) }
-                .accessibilityLabel("Talk to \(a.name)")
+                .accessibilityLabel("Parler à \(a.name)")
         }
     }
 
@@ -100,18 +125,18 @@ struct AgentWidgetView: View {
             screen(a).frame(maxHeight: .infinity)
             VStack(alignment: .leading, spacing: 0) {
                 Text(a.name).font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
-                Text(ap.map { "Asks to use \($0.tool)" } ?? shortStatus(a))
+                Text(headline(a)).contentTransition(.opacity)
                     .font(.system(size: 12, weight: .medium)).foregroundStyle(a.needs || ap != nil ? Pal.amber : Color(white: 0.55))
-                Text(ap.map { $0.summary ?? $0.description } ?? a.line ?? "")
+                Text(ap.map { $0.summary ?? $0.description } ?? ((a.needs || a.status != "idle") ? (a.line ?? "") : "Touche le micro pour discuter"))
                     .font(.system(size: 13)).foregroundStyle(Color(white: 0.8)).lineLimit(3)
                     .padding(.top, 6)
                 Spacer(minLength: 8)
                 HStack(spacing: 8) {
                     if let ap {
-                        Button(intent: AnswerApproval(ap.requestId, allow: false)) { WideButton(symbol: "xmark", text: "Deny", light: false) }
-                        Button(intent: AnswerApproval(ap.requestId, allow: true)) { WideButton(symbol: "checkmark", text: "Allow", light: true) }
+                        Button(intent: AnswerApproval(ap.requestId, allow: false)) { WideButton(symbol: "xmark", text: "Refuser", light: false) }
+                        Button(intent: AnswerApproval(ap.requestId, allow: true)) { WideButton(symbol: "checkmark", text: "Autoriser", light: true) }
                     } else {
-                        Link(destination: URL(string: "chums://talk/\(a.id)")!) { WideButton(symbol: "mic.fill", text: "Talk", light: true) }
+                        Link(destination: URL(string: "chums://talk/\(a.id)")!) { WideButton(symbol: "mic.fill", text: "Parler", light: true) }
                     }
                 }
                 .buttonStyle(.plain)
@@ -126,7 +151,9 @@ struct AgentWidgetView: View {
         ZStack {
             AccessoryWidgetBackground()
             WidgetFace(character: a.character, size: 46, plate: false)
-            if a.needs { Circle().strokeBorder(lineWidth: 3).widgetAccentable() }
+            if a.needs || entry.state?.approval(for: a.id) != nil {
+                Text("?").font(.headline).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing).widgetAccentable()
+            }
         }
         .widgetURL(URL(string: "chums://agent/\(a.id)"))
     }
@@ -136,7 +163,7 @@ struct AgentWidgetView: View {
             WidgetFace(character: a.character, size: 34, plate: false)
             VStack(alignment: .leading, spacing: 1) {
                 Text(a.name).font(.headline).widgetAccentable()
-                Text(statusWords(a)).font(.caption).lineLimit(2)
+                Text(headline(a)).font(.caption).lineLimit(2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -158,10 +185,10 @@ struct TeamWidgetView: View {
         VStack(alignment: .leading, spacing: 10) {
             if family == .systemLarge {
                 HStack {
-                    Text("Chums").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
+                    Text("Klone Chums").font(.system(size: 17, weight: .bold)).foregroundStyle(.white)
                     Spacer()
                     let n = agents.filter(\.needs).count, working = agents.filter { $0.status == "working" }.count
-                    Text(entry.state == nil ? "Can't reach your Mac" : n > 0 ? "\(n) need\(n == 1 ? "s" : "") you" : working > 0 ? "\(working) working" : "All idle")
+                    Text(entry.state == nil ? "Mac injoignable" : n > 0 ? "\(n) question(s)" : working > 0 ? "\(working) en cours" : companionInvitation(in: entry.state, at: entry.date))
                         .font(.system(size: 12, weight: .medium)).foregroundStyle(n > 0 ? Pal.amber : Color(white: 0.55))
                 }
             }
@@ -173,7 +200,7 @@ struct TeamWidgetView: View {
                                 .overlay(alignment: .bottomTrailing) { WidgetDot(agent: a).offset(x: 2, y: 2) }
                             Text(a.name).font(.system(size: 11, weight: .medium)).foregroundStyle(.white).lineLimit(1)
                             if family == .systemLarge {
-                                Text(a.needs ? "Needs you" : a.status == "working" ? "Working" : a.status == "offline" ? "Off" : "Idle")
+                                Text(shortStatus(a))
                                     .font(.system(size: 10)).foregroundStyle(a.needs ? Pal.amber : Color(white: 0.5))
                             }
                         }
@@ -188,7 +215,7 @@ struct TeamWidgetView: View {
                     Text("\(who.name): \(ap.summary ?? ap.description)").font(.system(size: 12)).foregroundStyle(Color(white: 0.85)).lineLimit(2)
                     Spacer(minLength: 4)
                     Button(intent: AnswerApproval(ap.requestId, allow: false)) { Image(systemName: "xmark") }.tint(Color(white: 0.25))
-                    Button(intent: AnswerApproval(ap.requestId, allow: true)) { Text("Allow").bold() }.tint(.white).foregroundStyle(.black)
+                    Button(intent: AnswerApproval(ap.requestId, allow: true)) { Text("Autoriser").bold() }.tint(.white).foregroundStyle(.black)
                 }
                 .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).controlSize(.small)
             }

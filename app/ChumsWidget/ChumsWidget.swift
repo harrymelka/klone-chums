@@ -16,12 +16,21 @@ struct Entry: TimelineEntry {
     let date: Date
     let agent: WAgent?
     let updatedAt: Date?
+    var approval = false
     var stale: Bool {
         guard let updatedAt else { return true }
         return date.timeIntervalSince(updatedAt) >= 15 * 60
     }
+    private var invitation: String {
+        switch Calendar.current.component(.hour, from: date) {
+        case 5..<12: return "On fait quoi ?"
+        case 12..<18: return "Quoi de neuf ?"
+        default: return "On discute ?"
+        }
+    }
     var label: String {
-        guard !stale, let agent else { return "Parler" }
+        guard !stale, let agent else { return invitation }
+        if approval { return "Ton accord ?" }
         if agent.needs || agent.status == "waiting" { return "Une question" }
         switch agent.status {
         case "working": return "Travaille"
@@ -29,10 +38,10 @@ struct Entry: TimelineEntry {
         case "blocked": return "À vérifier"
         case "limited": return "En attente"
         case "offline": return "Hors ligne"
-        default: return "Parler"
+        default: return invitation
         }
     }
-    var attention: Bool { !stale && (agent?.needs == true || agent?.status == "waiting") }
+    var attention: Bool { !stale && (approval || agent?.needs == true || agent?.status == "waiting") }
     var pose: String {
         if attention { return "needs" }
         guard !stale else { return "idle" }
@@ -42,7 +51,7 @@ struct Entry: TimelineEntry {
     }
     var symbol: String {
         guard !stale, let agent else { return "arrow.clockwise" }
-        if agent.needs || agent.status == "waiting" { return "questionmark" }
+        if approval || agent.needs || agent.status == "waiting" { return "questionmark" }
         switch agent.status {
         case "working", "compacting": return "ellipsis"
         case "blocked", "limited", "offline": return "exclamationmark"
@@ -51,7 +60,7 @@ struct Entry: TimelineEntry {
     }
     var tint: Color {
         guard !stale, let agent else { return .secondary }
-        if agent.needs || agent.status == "waiting" { return .orange }
+        if approval || agent.needs || agent.status == "waiting" { return .orange }
         if agent.status == "blocked" { return .red }
         if ["working", "compacting"].contains(agent.status) { return .blue }
         return .green
@@ -61,6 +70,7 @@ struct Entry: TimelineEntry {
 struct Provider: TimelineProvider {
     private let agentKey = "klone.complication.agent"
     private let dateKey = "klone.complication.date"
+    private let approvalKey = "klone.complication.approval"
     func placeholder(in context: Context) -> Entry {
         Entry(date: .now, agent: WAgent(id: "noodle", name: "Hermès", character: "noodle", status: "idle", line: nil, needs: false), updatedAt: .now)
     }
@@ -73,7 +83,7 @@ struct Provider: TimelineProvider {
             let entry = await current()
             // If the system defers the next reload, explicitly age out an old working/approval state.
             let expiry = (entry.updatedAt ?? entry.date).addingTimeInterval(15 * 60)
-            let stale = Entry(date: max(expiry, entry.date.addingTimeInterval(1)), agent: entry.agent, updatedAt: entry.updatedAt)
+            let stale = Entry(date: max(expiry, entry.date.addingTimeInterval(1)), agent: entry.agent, updatedAt: entry.updatedAt, approval: entry.approval)
             completion(Timeline(entries: [entry, stale], policy: .after(entry.date.addingTimeInterval(15 * 60))))
         }
     }
@@ -82,14 +92,16 @@ struct Provider: TimelineProvider {
         if let state = await WidgetHub.state(), let a = state.current {
             // Never cache conversation text for a watch-face complication.
             let agent = WAgent(id: a.id, name: a.name, character: a.character, status: a.status, line: nil, needs: a.needs)
+            let approval = state.approval(for: a.id) != nil
             if let data = try? JSONEncoder().encode(agent) {
                 UserDefaults.standard.set(data, forKey: agentKey)
                 UserDefaults.standard.set(now, forKey: dateKey)
+                UserDefaults.standard.set(approval, forKey: approvalKey)
             }
-            return Entry(date: now, agent: agent, updatedAt: now)
+            return Entry(date: now, agent: agent, updatedAt: now, approval: approval)
         }
         let cached = UserDefaults.standard.data(forKey: agentKey).flatMap { try? JSONDecoder().decode(WAgent.self, from: $0) }
-        return Entry(date: now, agent: cached, updatedAt: UserDefaults.standard.object(forKey: dateKey) as? Date)
+        return Entry(date: now, agent: cached, updatedAt: UserDefaults.standard.object(forKey: dateKey) as? Date, approval: UserDefaults.standard.bool(forKey: approvalKey))
     }
 }
 
@@ -123,11 +135,7 @@ struct ChumsWidgetView: View {
             case .accessoryRectangular:
                 HStack(spacing: 8) {
                     face.frame(width: 56, height: 56)
-                    if entry.label == "Parler" {
-                        Label("Parler", systemImage: "mic.fill").font(.headline).lineLimit(1)
-                    } else {
-                        Text(entry.label).font(.headline).lineLimit(2)
-                    }
+                    Text(entry.label).font(.headline).lineLimit(2)
                     Spacer(minLength: 0)
                 }
             case .accessoryInline:

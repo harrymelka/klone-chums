@@ -136,3 +136,28 @@ vocal restent à tester avec Harry. Installation n’équivaut pas à validation
 - Analyse des sources non ignorées : aucun des secrets de connexion locaux
   retrouvé dans les fichiers à publier. `git diff --check` et vérifications de
   syntaxe des scripts Python/zsh réussis.
+
+## Retours d’usage — médias, saisie et défilement
+
+- `npm run test:klone` : six tests réussis, couvrant reprise/idempotence/accords,
+  photos multimodales et rejets avant exécution, preview vocale sans création
+  d’ordre, audio vide et absence de parole reconnue.
+- Vision Hermès réelle : image synthétique rouge reconnue dans une session QA
+  isolée. Aucun message photo ajouté au fil utilisateur.
+- Whisper réel dans binome : échantillon synthétique transcrit par la nouvelle
+  route, sans changement du fil ni des accords. Aucun micro ambiant enregistré.
+- Builds Release signés iPhone/Watch et Mac réussis ; vérification de signature
+  Mac réussie. Installation/lancement des apps physiques confirmés.
+- Capture iPhone : canevas plein écran et commandes flottantes confirmés.
+  Panneau, clavier et gestes restent à valider en usage avec Harry.
+- Mac : rendus natifs hors ligne des états repos, enregistrement, pause et
+  relecture contrôlés ; transcription lisible et boutons accessibles. La capture
+  vocale physique et la lecture d’une nouvelle réponse restent à confirmer.
+- Watch : le premier correctif a échoué au doigt et à la couronne selon Harry.
+  Nouvelle version installée : hauteur du viewport bornée, Crown explicite et
+  diagnostics privés de géométrie/offset sans texte des messages. Confirmation
+  physique demandée, non déduite du succès de compilation.
+- Suite upstream : tests channel/hub et runtimes réussis ; quatre tests de
+  dimensions du renderer artifacts échouent également sur HEAD initial 48435ff
+  (1200 au lieu de 780). Aucun fichier de ce renderer modifié ici.
+- Deux préparations simultanées réussies après ajout du verrou local.

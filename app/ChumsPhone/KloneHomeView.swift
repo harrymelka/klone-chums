@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import WidgetKit
 
 /// Klone's light, full-screen presentation. Upstream HomeView stays available for merges.
@@ -11,7 +12,18 @@ struct KloneHomeView: View {
     @State private var sending = false
     @State private var deciding = false
     @State private var settings = false
-    @State private var fullThread = false
+    @State private var choosingAvatar = false
+    @State private var keyboardHeight: CGFloat = 0
+    @State private var composerHeight: CGFloat = 80
+    @State private var detent = 0
+    @GestureState private var sheetDrag: CGFloat = 0
+    @State private var photos: [PhotosPickerItem] = []
+    @State private var attachments: [Attachment] = []
+    @State private var choosingPhotos = false
+    @State private var loadingPhotos = false
+    @AppStorage("kloneShowThread") private var showThread = true
+    @AppStorage("character") private var character = "noodle"
+    @AppStorage("kloneLastInteraction") private var lastInteraction = 0.0
     @State private var showWriting = false
     @State private var prepared = false
     @State private var pendingTalk = false
@@ -33,69 +45,103 @@ struct KloneHomeView: View {
         _model = State(initialValue: m)
     }
     private var agent: AgentInfo { model.controller.info("noodle") }
+    private var appearance: CharacterKind { CharacterKind(id: character) ?? .noodle }
+    private var shownAgent: AgentInfo {
+        AgentInfo(id: agent.id, name: agent.name, character: appearance.rawValue,
+                  status: agent.status, line: agent.line, needs: agent.needs, runtime: agent.runtime)
+    }
     private var approval: Approval? { hub.state?.approvals.first { $0.session == "noodle" } }
-    private var busy: Bool { sending || model.controller.talk == .sending }
+    private var busy: Bool { sending || loadingPhotos || model.controller.talk == .sending }
     private var working: Bool { ["working", "compacting"].contains(agent.status) }
     private var canStart: Bool { prepared && hub.connected && !busy && !working }
     private var title: String {
         if model.listening { return "Je t’écoute." }
+        if loadingPhotos { return "Je prépare tes photos…" }
         if busy { return "Je transmets…" }
         if !hub.connected { return hub.state == nil ? "Connexion à Hermès…" : "Je me reconnecte…" }
-        if approval != nil || agent.needs || agent.status == "waiting" { return "Une question pour toi." }
+        if approval != nil { return "J’ai besoin de ton accord." }
+        if agent.needs || agent.status == "waiting" { return "J’ai une question pour toi." }
         if working { return "Je m’en occupe." }
         if model.controller.talk == .speaking { return "Voici ce que j’ai trouvé." }
         if ["blocked", "limited", "offline"].contains(agent.status) { return "Regardons ça ensemble." }
-        return "Je suis là."
+        if lastInteraction > 0 && Date().timeIntervalSince1970 - lastInteraction > 4 * 3600 { return "Alors, quoi de neuf ?" }
+        switch Calendar.current.component(.hour, from: Date()) {
+        case 5..<12: return "On commence la journée ?"
+        case 12..<18: return "Qu’est-ce qu’on fait ensemble ?"
+        case 18..<23: return "Comment s’est passée ta journée ?"
+        default: return "Encore un petit moment ensemble ?"
+        }
     }
     var body: some View {
         GeometryReader { geometry in
-            VStack(spacing: 0) {
-                header
-                VStack(spacing: 5) {
-                    Text(model.listening ? "À TOI" : "AVEC TOI")
-                        .font(.system(size: 10, weight: .medium)).tracking(2).foregroundStyle(quiet)
-                    Text(title).font(.system(.title2, design: .rounded, weight: .semibold))
-                        .multilineTextAlignment(.center).padding(.horizontal, 20)
-                }.padding(.top, 10)
-                if !typing && !typeSize.isAccessibilitySize {
-                    CharacterStage(model: model, agent: agent, small: false,
-                                   paused: settings || fullThread || phase != .active,
-                                   open: { fullThread = true }, settings: { settings = true },
-                                   background: nil, magnification: 1.34, verticalOffset: -0.08)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .allowsHitTesting(canStart || model.listening)
-                        .accessibilityHint("Personnage Hermès. Maintiens pour parler, ou utilise le bouton Parler.")
-                }
+            let keyboardInset = max(0, keyboardHeight - geometry.safeAreaInsets.bottom)
+            let available = max(160, geometry.size.height - keyboardInset)
+            ZStack {
+                ground.ignoresSafeArea().onTapGesture { dismissKeyboard() }
+                CharacterStage(model: model, agent: shownAgent, small: false,
+                               paused: settings || choosingAvatar || phase != .active,
+                               open: { revealThread() }, settings: { settings = true },
+                               background: nil, magnification: keyboardHeight > 0 ? 0.76 : 1.34,
+                               verticalOffset: keyboardHeight > 0 ? -0.28 : -0.05)
+                    .colorMultiply(appearance == .peeps ? ink : .white)
+                    .frame(width: geometry.size.width, height: geometry.size.height + geometry.safeAreaInsets.top + geometry.safeAreaInsets.bottom)
+                    .offset(y: (geometry.safeAreaInsets.bottom - geometry.safeAreaInsets.top) / 2)
+                    .allowsHitTesting(canStart || model.listening || typing)
+                    .simultaneousGesture(TapGesture().onEnded { if typing { dismissKeyboard() } })
+                    .accessibilityHint("Personnage Hermès. Maintiens pour parler, ou utilise le bouton Parler.")
                 VStack(spacing: 0) {
-                    HStack {
-                        Text("NOTRE CONVERSATION").font(.system(size: 10, weight: .semibold)).tracking(1.4)
-                        Spacer()
-                        Button { fullThread = true } label: { Image(systemName: "arrow.up.left.and.arrow.down.right") }
-                            .frame(width: 44, height: 44).accessibilityLabel("Agrandir la conversation")
-                    }.foregroundStyle(quiet)
-                    thread
+                    header
+                    TimelineView(.periodic(from: .now, by: 60)) { _ in
+                        Text(title).font(.system(.title3, design: .rounded, weight: .semibold))
+                            .multilineTextAlignment(.center).padding(.horizontal, 30)
+                    }
+                    .padding(.bottom, 16)
+                    .background(LinearGradient(colors: [ground.opacity(0.94), ground.opacity(0.7), ground.opacity(0)], startPoint: .top, endPoint: .bottom))
+                    Spacer(minLength: 0)
+                    if showThread {
+                        conversationPanel(available: available)
+                            .transition(.move(edge: .bottom).combined(with: .opacity))
+                    }
+                    composer
+                        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
+                        .padding(.horizontal, 12).padding(.bottom, 10)
                 }
-                .padding(.horizontal, 24)
-                .frame(height: typing || typeSize.isAccessibilitySize ? nil : max(150, geometry.size.height * 0.31))
-                .frame(maxHeight: typing || typeSize.isAccessibilitySize ? .infinity : nil)
+                .padding(.bottom, keyboardInset)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.22), value: keyboardInset)
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .ignoresSafeArea(.keyboard)
         .background(ground.ignoresSafeArea())
         .foregroundStyle(ink)
+        .preferredColorScheme(.light)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { event in
+            guard let frame = event.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
+                  let window = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first(where: { $0.activationState == .foregroundActive })?.windows.first(where: \.isKeyWindow) else { return }
+            let local = window.convert(frame, from: window.screen.coordinateSpace)
+            keyboardHeight = max(0, window.bounds.maxY - local.minY)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in keyboardHeight = 0 }
         .task {
             guard !prepared else { return }
             model.onNotice = { text in notice = text == ScreenModel.micRefused ? "Autorise le microphone pour Klone Chums dans les Réglages de l’iPhone." : text }
             await model.prepare()
-            model.setAgent("noodle"); prepared = true
+            model.setAgent("noodle"); model.rig.character = appearance; prepared = true
             await hub.focus("noodle")
             if pendingTalk { pendingTalk = false; talk() }
         }
         .onChange(of: phase) { _, value in
             if value == .background {
+                dismissKeyboard()
                 model.micUp(cancel: true)
                 WidgetCenter.shared.reloadAllTimelines()
             }
+        }
+        .onChange(of: character) { _, _ in model.rig.character = appearance }
+        .photosPicker(isPresented: $choosingPhotos, selection: $photos, maxSelectionCount: max(1, 4 - attachments.count), matching: .images)
+        .onChange(of: photos) { _, items in
+            guard !items.isEmpty else { return }
+            Task { await loadPhotos(items) }
         }
         .onChange(of: typing) { _, on in if on { hush(); hub.nudge() } }
         .onChange(of: hub.state?.rev) { _, _ in
@@ -106,7 +152,7 @@ struct KloneHomeView: View {
         .onOpenURL { url in
             guard let link = PhoneLink(url) else { return }
             switch link {
-            case .agent: fullThread = true
+            case .agent: revealThread(expanded: true)
             case .talk:
                 if prepared { talk() } else { pendingTalk = true }
             }
@@ -115,31 +161,93 @@ struct KloneHomeView: View {
         .sheet(isPresented: $settings) {
             AppSettings(hub: hub, character: agent.character).preferredColorScheme(.dark)
         }
-        .sheet(isPresented: $fullThread, onDismiss: { model.micUp(cancel: true) }) {
-            VStack(spacing: 0) {
-                HStack {
-                    Text("Notre conversation").font(.headline)
-                    Spacer()
-                    Button("Fermer") { fullThread = false }
-                }.padding(20)
-                thread.padding(.horizontal, 24)
-                composer
-            }
-            .background(ground.ignoresSafeArea()).foregroundStyle(ink)
-            .presentationDragIndicator(.visible)
+        .sheet(isPresented: $choosingAvatar) {
+            NavigationStack {
+                List {
+                    Section {
+                        ForEach(SoulView.looks, id: \.self) { id in
+                            if let kind = CharacterKind(id: id) {
+                                Button {
+                                    character = kind.rawValue
+                                    choosingAvatar = false
+                                } label: {
+                                    HStack(spacing: 16) {
+                                        AgentFace(character: kind.rawValue, size: 52)
+                                            .background(ink, in: RoundedRectangle(cornerRadius: 15))
+                                        Text(kind.name).font(.body.weight(.medium)).foregroundStyle(ink)
+                                        Spacer()
+                                        if appearance == kind { Image(systemName: "checkmark.circle.fill").foregroundStyle(ink) }
+                                    }.padding(.vertical, 4)
+                                }
+                                .accessibilityLabel("\(kind.name)\(appearance == kind ? ", sélectionné" : "")")
+                            }
+                        }
+                    } footer: { Text("Tu changes son apparence. Hermès et notre conversation restent les mêmes.") }
+                }
+                .navigationTitle("Choisir son avatar")
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fermer") { choosingAvatar = false } } }
+            }.presentationDetents([.medium, .large]).preferredColorScheme(.light)
         }
         .sheet(item: $viewing) { ArtifactSheet(artifact: $0, character: agent.character).preferredColorScheme(.dark) }
     }
     private var header: some View {
         HStack {
-            Button { fullThread = true } label: { Image(systemName: "text.bubble") }
-                .frame(width: 44, height: 44).accessibilityLabel("Ouvrir toute la conversation")
+            Button { toggleThread() } label: { Image(systemName: showThread ? "text.bubble.fill" : "text.bubble") }
+                .frame(width: 44, height: 44)
+                .frame(width: 88, alignment: .leading)
+                .accessibilityLabel(showThread ? "Masquer la conversation" : "Afficher la conversation")
+                .accessibilityValue(showThread ? "Visible" : "Masquée")
             Spacer()
             Text("Hermès").font(.system(.body, weight: .semibold))
             Spacer()
+            Button { dismissKeyboard(); choosingAvatar = true } label: {
+                AgentFace(character: appearance.rawValue, size: 30)
+                    .background(ink, in: Circle()).frame(width: 44, height: 44)
+            }.accessibilityLabel("Changer d’avatar, \(appearance.name)")
             Button { model.micUp(cancel: true); settings = true } label: { Image(systemName: "ellipsis") }
                 .frame(width: 44, height: 44).accessibilityLabel("Réglages")
         }.padding(.horizontal, 14).frame(height: 50)
+    }
+    private func conversationPanel(available: CGFloat) -> some View {
+        let maxHeight = max(100, available - composerHeight - 116)
+        let heights = [min(maxHeight, available * 0.30), min(maxHeight, available * 0.50), maxHeight]
+        let height = min(maxHeight, max(72, heights[min(detent, 2)] - sheetDrag))
+        return VStack(spacing: 0) {
+            VStack(spacing: 2) {
+                Capsule().fill(quiet.opacity(0.45)).frame(width: 36, height: 4).padding(.top, 10)
+                HStack {
+                    Text("Notre conversation").font(.subheadline.weight(.semibold))
+                    Spacer()
+                    if keyboardHeight > 0 {
+                        Button { dismissKeyboard() } label: { Image(systemName: "keyboard.chevron.compact.down").frame(width: 44, height: 44) }
+                            .accessibilityLabel("Masquer le clavier")
+                    }
+                    Button { withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { detent = detent == 2 ? 0 : 2 } } label: {
+                        Image(systemName: detent == 2 ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right").frame(width: 44, height: 44)
+                    }.accessibilityLabel(detent == 2 ? "Réduire la conversation" : "Agrandir la conversation")
+                    Button { toggleThread() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                        .accessibilityLabel("Masquer la conversation")
+                }.padding(.horizontal, 20)
+            }
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 8)
+                .updating($sheetDrag) { value, state, _ in state = value.translation.height }
+                .onEnded { value in
+                    let projected = heights[min(detent, 2)] - value.predictedEndTranslation.height
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+                        if projected < heights[0] * 0.5 { showThread = false; dismissKeyboard() }
+                        else { detent = heights.indices.min(by: { abs(heights[$0] - projected) < abs(heights[$1] - projected) }) ?? 0 }
+                    }
+                })
+            thread.padding(.horizontal, 16)
+        }
+        .frame(height: height)
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                .fill(ground.opacity(0.96))
+                .shadow(color: ink.opacity(0.06), radius: 18, y: -3)
+        }
+        .padding(.horizontal, 6)
     }
     private var thread: some View {
         ScrollViewReader { scroll in
@@ -150,20 +258,15 @@ struct KloneHomeView: View {
                             .font(.body).foregroundStyle(quiet).padding(.vertical, 12)
                     }
                     ForEach(model.conversation) { line in
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text(line.who == .you ? "TOI" : line.who == .note ? "INFORMATION" : "HERMÈS")
-                                .font(.system(size: 10, weight: .semibold)).tracking(1).foregroundStyle(quiet)
-                            Text(line.text).font(.system(.subheadline)).textSelection(.enabled)
-                            if let artifact = line.artifact {
-                                Button(artifact.title) { viewing = artifact }.font(.subheadline)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading).id(line.id)
+                        KloneMessageBubble(line: line, character: appearance.rawValue, ink: ink, ground: ground) { viewing = $0 }
+                            .id(line.id)
                     }
                     Color.clear.frame(height: 4).id("end")
                 }.padding(.bottom, 8)
             }
             .scrollDismissesKeyboard(.interactively)
+            .simultaneousGesture(TapGesture().onEnded { if typing { dismissKeyboard() } })
+            .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.035), .init(color: .black, location: 0.96), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom))
             .onAppear { scroll.scrollTo("end", anchor: .bottom) }
             .onChange(of: model.conversation.last?.id) { _, _ in
                 withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { scroll.scrollTo("end", anchor: .bottom) }
@@ -191,26 +294,46 @@ struct KloneHomeView: View {
                     Button { self.notice = nil } label: { Image(systemName: "xmark") }.frame(width: 32, height: 32).accessibilityLabel("Fermer le message")
                 }
             }
+            if !attachments.isEmpty {
+                ScrollView(.horizontal) {
+                    HStack(spacing: 12) {
+                        ForEach(attachments) { item in
+                            HStack(spacing: 6) {
+                                if let preview = item.preview {
+                                    Image(uiImage: preview).resizable().scaledToFill().frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 8))
+                                }
+                                Text(item.name).font(.caption).lineLimit(1)
+                                Button { attachments.removeAll { $0.id == item.id } } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
+                                    .accessibilityLabel("Retirer \(item.name)").disabled(sending)
+                            }
+                        }
+                    }
+                }.scrollIndicators(.hidden)
+            }
             if showWriting && !model.listening {
                 HStack(alignment: .bottom) {
                     TextField("Écrire à Hermès…", text: $draft, axis: .vertical)
                         .lineLimit(1...4).focused($typing).padding(12)
                         .background(ink.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
                         .onSubmit { send() }
+                    Button { dismissKeyboard() } label: { Image(systemName: "keyboard.chevron.compact.down").frame(width: 36, height: 44) }
+                        .accessibilityLabel("Masquer le clavier")
                     Button(action: send) { Image(systemName: "arrow.up").frame(width: 44, height: 44) }
-                        .disabled(!canStart || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                        .accessibilityLabel("Envoyer le message écrit")
+                        .disabled(!canStart || (draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && attachments.isEmpty))
+                        .accessibilityLabel(attachments.isEmpty ? "Envoyer le message écrit" : "Envoyer le message et les photos")
                 }
             }
             HStack(spacing: 10) {
+                if !model.listening {
+                    Menu {
+                        Button { dismissKeyboard(); choosingPhotos = true } label: { Label("Ajouter une photo", systemImage: "photo") }.disabled(busy || attachments.count >= 4)
+                        Button { beginWriting() } label: { Label("Écrire à Hermès", systemImage: "square.and.pencil") }
+                    } label: { Image(systemName: "plus").frame(width: 44, height: 46) }
+                    .accessibilityLabel("Ajouter une photo ou écrire")
+                }
                 if model.listening {
                     Button { model.micUp(cancel: true) } label: { Image(systemName: "xmark").frame(width: 46, height: 46) }
                         .accessibilityLabel("Annuler l’enregistrement")
-                } else {
-                    Button {
-                        showWriting.toggle(); typing = showWriting
-                    } label: { Image(systemName: showWriting ? "keyboard.chevron.compact.down" : "keyboard").frame(width: 46, height: 46) }
-                        .accessibilityLabel(showWriting ? "Masquer le clavier" : "Écrire un message")
                 }
                 Button(action: talk) {
                     HStack(spacing: 9) {
@@ -234,8 +357,9 @@ struct KloneHomeView: View {
             }
         }
         .buttonStyle(.plain)
-        .padding(.horizontal, 20).padding(.top, 10).padding(.bottom, 12)
-        .background(ground)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(ground.opacity(0.97), in: RoundedRectangle(cornerRadius: 28))
+        .shadow(color: ink.opacity(0.09), radius: 18, y: 4)
     }
     private func hush() {
         model.hush()
@@ -243,19 +367,85 @@ struct KloneHomeView: View {
     }
     private func talk() {
         typing = false; notice = nil
-        if model.listening { model.micUp(cancel: false) }
+        if model.listening { lastInteraction = Date().timeIntervalSince1970; model.micUp(cancel: false) }
         else if canStart { model.micDown() }
+    }
+    private func dismissKeyboard() {
+        typing = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+    private func beginWriting() {
+        showWriting = true
+        revealThread()
+        Task { @MainActor in
+            await Task.yield()
+            typing = true
+        }
+    }
+    private func revealThread(expanded: Bool = false) {
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) {
+            showThread = true
+            if expanded { detent = 2 }
+        }
+    }
+    private func toggleThread() {
+        dismissKeyboard()
+        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.22)) { showThread.toggle() }
+    }
+    private func loadPhotos(_ items: [PhotosPickerItem]) async {
+        loadingPhotos = true
+        defer { loadingPhotos = false; photos = [] }
+        for item in items.prefix(max(0, 4 - attachments.count)) {
+            guard let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data),
+                  let photo = compactPhoto(image, name: "photo-\(UUID().uuidString.prefix(8)).jpg") else {
+                notice = "Cette photo n’a pas pu être lue. Choisis une autre image. Seules les photos sont prises en charge."
+                continue
+            }
+            guard photo.data.count <= 1_500_000 else {
+                notice = "Cette photo dépasse 1,5 Mo après compression. Choisis une image plus petite."
+                continue
+            }
+            attachments.append(photo)
+        }
+        if !attachments.isEmpty { showWriting = true }
+    }
+    private func compactPhoto(_ image: UIImage, name: String) -> Attachment? {
+        guard let original = Attachment.photo(image, name: name) else { return nil }
+        if original.data.count <= 1_500_000 { return original }
+        var current = UIImage(data: original.data) ?? image
+        for _ in 0..<4 {
+            let size = CGSize(width: max(1, current.size.width * 0.75), height: max(1, current.size.height * 0.75))
+            let format = UIGraphicsImageRendererFormat(); format.scale = 1
+            let source = current
+            current = UIGraphicsImageRenderer(size: size, format: format).image { _ in source.draw(in: CGRect(origin: .zero, size: size)) }
+            if let data = current.jpegData(compressionQuality: 0.7), data.count <= 1_500_000 {
+                return Attachment(name: name, type: "image/jpeg", data: data, preview: original.preview)
+            }
+        }
+        return nil
     }
     private func send() {
         let text = String(draft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(4000))
-        guard canStart, !model.listening, !text.isEmpty else { return }
+        let files = attachments
+        guard canStart, !model.listening, !text.isEmpty || !files.isEmpty else { return }
         sending = true; notice = nil
         Task {
             defer { sending = false }
-            if let result = await model.send(text: text), result.kind == "order" || result.kind == "verdict" {
+            var paths: [String] = []
+            for file in files {
+                guard let upload = await hub.upload(file.data, name: file.name, type: file.type) else {
+                    notice = "La photo n’a pas été envoyée. Elle reste ici pour réessayer."
+                    return
+                }
+                paths.append(upload.path)
+            }
+            let prompt = text.isEmpty && !files.isEmpty ? (files.count == 1 ? "Regarde cette photo." : "Regarde ces photos.") : text
+            if let result = await model.send(text: prompt, files: paths), result.kind == "order" || result.kind == "verdict" {
                 if draft.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix(text) { draft = "" }
+                attachments.removeAll { file in files.contains(file) }
+                lastInteraction = Date().timeIntervalSince1970
                 typing = false
-            } else { notice = "Message non confirmé. Vérifie la conversation avant de le renvoyer." }
+            } else { notice = "Message non confirmé. Le texte et les photos restent ici. Vérifie la conversation avant de réessayer." }
         }
     }
     private func decide(_ approval: Approval, allow: Bool) {

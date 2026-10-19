@@ -35,6 +35,9 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
     var approval: MacApproval?
     var connected = false
     var listening = false
+    var paused = false
+    var transcribing = false
+    var voiceDraft: String?
     var requestingMicrophone = false
     var sending = false
     var deciding = false
@@ -52,10 +55,12 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
     @ObservationIgnored private var clip: URL?
     @ObservationIgnored private var approvalAtRecord: String?
     @ObservationIgnored private var poll: Task<Void, Never>?
+    @ObservationIgnored private var transcriptionTask: Task<Void, Never>?
     @ObservationIgnored private var recordingLimit: Task<Void, Never>?
     @ObservationIgnored private var permissionGeneration = 0
     @ObservationIgnored private var seen = Set<String>()
     @ObservationIgnored private var loaded = false
+    @ObservationIgnored private var lastInteraction = Date()
     @ObservationIgnored private var player: AVAudioPlayer?
     @ObservationIgnored private let speech = AVSpeechSynthesizer()
     @ObservationIgnored private var audioTask: Task<Void, Never>?
@@ -72,7 +77,7 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
         rig.character = .noodle; rig.chrome = false; rig.mode = .portrait
         speech.delegate = self
     }
-    var maySend: Bool { connected && !sending && !requestingMicrophone && !["working", "compacting"].contains(agentStatus) }
+    var maySend: Bool { connected && !sending && !transcribing && !requestingMicrophone && !["working", "compacting"].contains(agentStatus) }
     var level: Double {
         guard let recorder, recorder.isRecording else { return 0 }
         recorder.updateMeters()
@@ -131,6 +136,7 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
         approval = state.approvals.first { $0.session == "noodle" }
         lines = state.spoken.filter { ($0.agent ?? "noodle") == "noodle" }
         let fresh = lines.filter { !seen.contains($0.id) }
+        if loaded, !fresh.isEmpty { lastInteraction = Date() }
         seen.formUnion(lines.map(\.id))
         if seen.count > 600 { seen = Set(lines.map(\.id)) }
         if loaded, !muted, let reply = fresh.last(where: { $0.device == "mac" && $0.kind != "echo" }) { play(reply) }
@@ -139,7 +145,9 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
     }
     private func updateRig() {
         let state: ChumsState
-        if listening { status = "Je t’écoute"; state = .listening }
+        if listening { status = paused ? "Je garde ta place" : "Je t’écoute"; state = paused ? .idle : .listening }
+        else if transcribing { status = "Je transcris ton message…"; state = .thinking }
+        else if voiceDraft != nil { status = "Relis ton message"; state = .idle }
         else if sending { status = "Envoi à Hermès…"; state = .thinking }
         else if speaking { status = "Hermès te répond"; state = .speaking }
         else if !connected { status = "Hermès indisponible"; state = .sleep }
@@ -147,11 +155,19 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
         else if agentStatus == "working" { status = "Hermès travaille"; state = .working }
         else if agentStatus == "compacting" { status = "Hermès réfléchit"; state = .thinking }
         else if ["blocked", "limited", "offline"].contains(agentStatus) { status = "À vérifier dans le chat"; state = .blocked }
-        else { status = "Parler à Hermès"; state = .idle }
+        else {
+            let hour = Calendar.current.component(.hour, from: Date())
+            if Date().timeIntervalSince(lastInteraction) > 30 * 60 { status = "Quoi de neuf ?" }
+            else if hour < 11 { status = "Bonjour ! On fait quoi ?" }
+            else if hour >= 21 { status = "Une idée avant de dormir ?" }
+            else { status = "On fait quoi ensemble ?" }
+            state = .idle
+        }
         rig.restState = state; rig.setState(state)
     }
     func microphone() {
-        if listening { sendRecording(); return }
+        if listening { finishRecording(); return }
+        if voiceDraft != nil || transcribing { return }
         guard maySend else { return }
         hush(); notice = nil; requestingMicrophone = true
         permissionGeneration += 1
@@ -170,7 +186,7 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
                 let r = try AVAudioRecorder(url: url, settings: [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 16000, AVNumberOfChannelsKey: 1, AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue])
                 r.isMeteringEnabled = true
                 guard r.record() else { throw NSError(domain: "Klone", code: 1) }
-                recorder = r; clip = url; approvalAtRecord = approval?.requestId; listening = true; updateRig()
+                recorder = r; clip = url; approvalAtRecord = approval?.requestId; listening = true; paused = false; updateRig()
                 recordingLimit = Task {
                     try? await Task.sleep(for: .seconds(60))
                     if !Task.isCancelled, listening {
@@ -180,31 +196,68 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
             } catch { notice = "Impossible de démarrer le microphone." }
         }
     }
-    func cancelRecording() {
-        permissionGeneration += 1; requestingMicrophone = false
-        recordingLimit?.cancel(); recordingLimit = nil
-        recorder?.stop(); recorder = nil; listening = false
-        if let clip { try? FileManager.default.removeItem(at: clip) }; clip = nil; approvalAtRecord = nil
+    func togglePause() {
+        guard listening, let recorder else { return }
+        if paused {
+            guard recorder.record() else { notice = "Impossible de reprendre le microphone."; return }
+            paused = false
+        } else {
+            recorder.pause(); paused = true
+        }
         updateRig()
     }
-    private func sendRecording() {
+    func cancelRecording() {
+        permissionGeneration += 1; requestingMicrophone = false
+        transcriptionTask?.cancel(); transcriptionTask = nil; transcribing = false
+        recordingLimit?.cancel(); recordingLimit = nil
+        recorder?.stop(); recorder = nil; listening = false; paused = false
+        if let clip { try? FileManager.default.removeItem(at: clip) }; clip = nil
+        voiceDraft = nil; approvalAtRecord = nil
+        updateRig()
+    }
+    func finishRecording() {
         guard listening, let r = recorder, let url = clip else { return }
         let duration = r.currentTime
-        r.stop(); recorder = nil; listening = false; clip = nil
+        r.stop(); recorder = nil; listening = false; paused = false; clip = nil
         recordingLimit?.cancel(); recordingLimit = nil
-        let approvalID = approvalAtRecord; approvalAtRecord = nil
         guard duration >= 0.3 else {
-            try? FileManager.default.removeItem(at: url); notice = "Message trop court. Réessaie en parlant un peu plus longtemps."; updateRig(); return
+            try? FileManager.default.removeItem(at: url); approvalAtRecord = nil
+            notice = "Message trop court. Réessaie en parlant un peu plus longtemps."; updateRig(); return
         }
-        sending = true; updateRig()
-        Task {
-            defer { try? FileManager.default.removeItem(at: url); sending = false; updateRig() }
+        let generation = permissionGeneration
+        transcribing = true; updateRig()
+        transcriptionTask = Task {
+            defer { try? FileManager.default.removeItem(at: url) }
             do {
                 let data = try Data(contentsOf: url)
-                var headers = ["X-Chums-Agent": "noodle", "X-Chums-Device": "mac"]
-                if let approvalID { headers["X-Chums-Approval"] = approvalID }
-                let result = try await request("/v1/utterance", body: data, type: "audio/m4a", headers: headers)
+                let result = try await request("/v1/transcribe", body: data, type: "audio/m4a", headers: ["X-Chums-Device": "mac"])
+                let text = try JSONDecoder().decode([String: String].self, from: result)["transcript"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !Task.isCancelled, generation == permissionGeneration else { return }
+                guard !text.isEmpty else { throw NSError(domain: "Klone", code: 1, userInfo: [NSLocalizedDescriptionKey: "Aucune parole reconnue. Réessaie en parlant plus près du micro."]) }
+                // Preview only: transcription never submits a Hermes task.
+                voiceDraft = text
+            } catch {
+                guard !Task.isCancelled, generation == permissionGeneration else { return }
+                notice = "Transcription impossible. \(error.localizedDescription)"; approvalAtRecord = nil
+            }
+            guard generation == permissionGeneration else { return }
+            transcribing = false; transcriptionTask = nil; updateRig()
+        }
+    }
+    func sendVoiceDraft() {
+        guard let voiceDraft, maySend, !listening else { return }
+        let text = String(voiceDraft.trimmingCharacters(in: .whitespacesAndNewlines).prefix(4000))
+        guard !text.isEmpty else { return }
+        let approvalID = approvalAtRecord
+        sending = true; notice = nil; hush(); updateRig()
+        Task {
+            defer { sending = false; updateRig() }
+            do {
+                var body: [String: String] = ["text": text, "agent": "noodle", "device": "mac"]
+                if let approvalID { body["approval"] = approvalID }
+                let result = try await request("/v1/say", body: JSONEncoder().encode(body))
                 try checkRoute(result)
+                self.voiceDraft = nil; approvalAtRecord = nil
             } catch { notice = "\(error.localizedDescription) Vérifie le fil avant de renvoyer le message." }
         }
     }
@@ -246,7 +299,7 @@ final class MacModel: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelega
         audioTask = Task {
             var audio = line.audioData.flatMap { Data(base64Encoded: $0) }
             if audio == nil, let path = line.audio, path.hasPrefix("/v1/speech/") { audio = try? await request(path) }
-            guard !Task.isCancelled, !muted, !listening else { return }
+            guard !Task.isCancelled, !muted, !listening, !transcribing, voiceDraft == nil else { return }
             if let audio, let p = try? AVAudioPlayer(data: audio) {
                 player = p; p.delegate = self
                 speaking = p.play(); updateRig()

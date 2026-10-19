@@ -49,6 +49,7 @@ struct ChumsScreen: View {
     @State private var readyForWidgetTalk = false
     @State private var pendingWidgetTalk = false
     @State private var crown = 0.0
+    @FocusState private var characterFocused: Bool
     @State private var showSettings = false
     @State private var chatOpen = false                       // the conversation card is up
     private static let chatTop = 30.0
@@ -112,6 +113,8 @@ struct ChumsScreen: View {
                         }
                     }
             )
+            .modifier(CharacterCrown(enabled: !chatOpen && viewing == nil && !showSettings,
+                                     crown: $crown, focused: $characterFocused))
         }
         .overlay(alignment: .bottom) {
             // the handle: always there; pull it up for the conversation
@@ -146,15 +149,15 @@ struct ChumsScreen: View {
                               listening: model.listening, sending: model.controller.talk == .sending,
                               talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
                               cancel: { model.micUp(cancel: true) },
-                              close: { withAnimation(.snappy(duration: 0.25)) { chatOpen = false; chatDrop = 0 } })
+                              close: { withAnimation(.snappy(duration: 0.25)) { chatOpen = false; chatDrop = 0 } },
+                              reportScroll: { hub.event($0) })
                         .frame(height: g.size.height - Self.chatTop)
                         .offset(y: chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull))
                         .overlay(alignment: .top) {
-                            // the card's top edge: drag it down to put the card away. The zone is wider than the grabber: the
-                            // whole band above the card (under the clock, where a finger reaching for it often lands) and a
-                            // little into it
-                            Color.clear.frame(height: Self.chatTop + 36).contentShape(Rectangle())
-                                .offset(y: (chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull)) - Self.chatTop)
+                            // Only the grabber dismisses the card. A broad invisible drag zone
+                            // over the first messages steals the ScrollView's finger gestures.
+                            Color.clear.frame(height: 22).contentShape(Rectangle())
+                                .offset(y: chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull))
                                 .gesture(DragGesture()
                                     .onChanged { chatDrop = max(0, $0.translation.height) }
                                     .onEnded { v in
@@ -176,11 +179,8 @@ struct ChumsScreen: View {
         }
         .overlay { if ScreenModel.fakeVoice { TouchSpot(show: touches) } }
         .ignoresSafeArea()
-        .focusable(!chatOpen && viewing == nil)
-        // a small range that wraps around: a range of ±1,000,000 detents ran the watch out of memory on the first turn
-        .digitalCrownRotation($crown, from: 0, through: 60, by: 1, sensitivity: .medium,
-                              isContinuous: true, isHapticFeedbackEnabled: true)
         .onChange(of: crown) { old, new in
+            guard !chatOpen, viewing == nil, !showSettings else { return }
             var d = new - old
             if d > 30 { d -= 60 } else if d < -30 { d += 60 }                // across the wrap
             if calm { calm = false }
@@ -214,10 +214,13 @@ struct ChumsScreen: View {
             if readyForWidgetTalk { model.micDown() }
             else { pendingWidgetTalk = true }
         }
-        .onChange(of: chatOpen) { _, open in
+        .onChange(of: chatOpen, initial: true) { _, open in
+            characterFocused = !open && viewing == nil && !showSettings
             if open { model.controller.seen() }
             else if model.listening { model.micUp(cancel: true) }
         }
+        .onChange(of: viewing) { _, value in characterFocused = value == nil && !chatOpen && !showSettings }
+        .onChange(of: showSettings) { _, value in characterFocused = !value && !chatOpen && viewing == nil }
         // the screen stays on while you hold the watch and look at it, and sleeps when it's put down (StayOn)
         .onChange(of: stayOn, initial: true) { _, v in StayOn.shared.enabled = v }
         .onChange(of: hub.state?.agents) { _, _ in
@@ -445,6 +448,25 @@ struct ChumsScreen: View {
     private func open(_ a: Artifact) {
         hub.event("artifact opened: \(a.kind) \(Int(a.w))x\(Int(a.h))")
         withAnimation(.snappy(duration: 0.3)) { viewing = a; toast = nil }
+    }
+}
+
+
+/// Remove the custom Crown receiver from the view tree while a sheet/card owns input.
+/// Merely changing focusable(false) leaves the receiver installed and can compete with scrolling.
+private struct CharacterCrown: ViewModifier {
+    let enabled: Bool
+    @Binding var crown: Double
+    let focused: FocusState<Bool>.Binding
+
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled {
+            content.focusable().focused(focused)
+                .digitalCrownRotation($crown, from: 0, through: 60, by: 1, sensitivity: .medium,
+                                      isContinuous: true, isHapticFeedbackEnabled: true)
+        } else {
+            content.allowsHitTesting(false).accessibilityHidden(true)
+        }
     }
 }
 

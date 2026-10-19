@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Prepare this checkout only; read existing pairing without changing Aura/Hermes."""
-import json,os,secrets,subprocess
+import json,os,secrets,subprocess,fcntl
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 local=root/'.local'; local.mkdir(mode=0o700,exist_ok=True);local.chmod(0o700)
+# iPhone and Mac builds share generated pairing files; serialize preparation.
+prepare_lock=(local/'.prepare.lock').open('a');os.chmod(local/'.prepare.lock',0o600)
+fcntl.flock(prepare_lock.fileno(),fcntl.LOCK_EX)
 server=local/'server';server.mkdir(mode=0o700,exist_ok=True)
 source=Path(os.environ.get('KLONE_HERMES_PAIRING',str(Path.home()/'introspec/binome/pool-01/data/profiles/klone-aura/Mac.kloneconnection')))
 connection=json.loads(source.read_text())

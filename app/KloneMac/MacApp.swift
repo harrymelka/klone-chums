@@ -29,7 +29,7 @@ final class MacDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
         NSApp.setActivationPolicy(.accessory)
-        pet = CompanionPanel(contentRect: NSRect(x: 0, y: 0, width: 232, height: 310),
+        pet = CompanionPanel(contentRect: NSRect(x: 0, y: 0, width: 260, height: 390),
                              styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
         pet.title = "Klone Chums · compagnon"
         pet.isOpaque = false; pet.backgroundColor = .clear; pet.hasShadow = false
@@ -40,7 +40,18 @@ final class MacDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !pet.setFrameUsingName("klone.desktop.character"), let area = NSScreen.main?.visibleFrame {
             pet.setFrameOrigin(NSPoint(x: area.maxX - 260, y: area.minY + 30))
         }
-        pet.contentView = NSHostingView(rootView: PetView(model: model, open: { [weak self] in self?.showChat() }))
+        // Older saved frames were too short for recording controls and transcript preview.
+        if pet.frame.height < 390 || pet.frame.width < 260 {
+            var frame = pet.frame; frame.size = NSSize(width: 260, height: 390)
+            pet.setFrame(frame, display: false)
+        }
+        let petHost = NSHostingView(rootView: PetView(model: model, open: { [weak self] in self?.showChat() }))
+        // Keep AppKit's content rect authoritative: an intrinsically small SwiftUI
+        // label must never shrink the transparent character canvas or its controls.
+        petHost.sizingOptions = []
+        petHost.frame = NSRect(origin: .zero, size: pet.contentRect(forFrameRect: pet.frame).size)
+        petHost.autoresizingMask = [.width, .height]
+        pet.contentView = petHost
         pet.orderFrontRegardless()
         chat = CompanionPanel(contentRect: NSRect(x: 0, y: 0, width: 430, height: 610),
                               styleMask: [.titled, .closable, .resizable], backing: .buffered, defer: false)
@@ -100,22 +111,42 @@ struct PetView: View {
                     Renderer.draw(model.rig, ctx, size: size, background: nil)
                 }
             }
-            .frame(height: 230)
+            .frame(width: 248, height: 250)
             .contentShape(Rectangle()).onTapGesture(perform: open)
             .accessibilityLabel("Noodle. \(model.status)")
             .accessibilityAddTraits(.isButton).accessibilityAction { open() }
-            Button { open(); model.microphone() } label: {
-                Label(model.listening ? "Envoyer" : model.requestingMicrophone ? "Autoriser le micro…" : model.status,
-                      systemImage: model.listening ? "arrow.up" : model.approval != nil ? "questionmark.bubble" : "mic.fill")
-                    .font(.system(size: 12, weight: .medium)).lineLimit(1)
-                    .padding(.horizontal, 13).padding(.vertical, 9)
-                    .background(.regularMaterial, in: Capsule())
+            if model.listening || model.transcribing || model.voiceDraft != nil {
+                MacVoiceControls(model: model, compact: true)
+                if let transcript = model.voiceDraft {
+                    Button(action: open) {
+                        Text(transcript).font(.system(size: 11)).lineLimit(2)
+                            .foregroundStyle(.white)
+                            .frame(height: 34, alignment: .top)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 10).padding(.vertical, 8)
+                            .background {
+                                RoundedRectangle(cornerRadius: 12).fill(.regularMaterial)
+                                RoundedRectangle(cornerRadius: 12).fill(.black.opacity(0.72))
+                            }
+                    }.buttonStyle(.plain).padding(.top, 5)
+                        .help("Ouvrir et corriger la transcription avant envoi")
+                }
+            } else {
+                Button { open(); model.microphone() } label: {
+                    Label(model.requestingMicrophone ? "Autoriser le micro…" : model.status,
+                          systemImage: model.approval != nil ? "questionmark.bubble" : "mic.fill")
+                        .font(.system(size: 12, weight: .medium)).lineLimit(1)
+                        .padding(.horizontal, 13).padding(.vertical, 9)
+                        .background(.regularMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain).disabled(!model.maySend)
+                .help("Ouvrir le chat et enregistrer un message")
             }
-            .buttonStyle(.plain).disabled(model.requestingMicrophone)
-            .help("Ouvrir le chat et enregistrer un message")
             Spacer(minLength: 4)
         }
         .padding(.horizontal, 6)
+        .frame(width: 260, height: 390, alignment: .top)
+        .environment(\.colorScheme, .dark)
         .preferredColorScheme(.dark)
     }
 }
@@ -175,13 +206,17 @@ struct MacChatView: View {
             }
             Divider()
             VStack(spacing: 10) {
-                if model.listening {
-                    HStack {
-                        Label("Je t’écoute…", systemImage: "waveform").foregroundStyle(.orange)
-                        Spacer()
-                        Button("Annuler", role: .cancel) { model.cancelRecording() }
-                        Button("Envoyer") { model.microphone() }.buttonStyle(.borderedProminent)
+                if model.listening || model.transcribing || model.voiceDraft != nil {
+                    if model.voiceDraft != nil {
+                        Text("Ta transcription · modifiable avant envoi")
+                            .font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        TextEditor(text: Binding(get: { model.voiceDraft ?? "" }, set: { model.voiceDraft = $0 }))
+                            .font(.system(size: 14)).frame(minHeight: 64, maxHeight: 130)
+                            .disabled(model.sending)
+                            .accessibilityLabel("Transcription du message vocal")
                     }
+                    MacVoiceControls(model: model)
                 } else {
                     HStack(alignment: .bottom, spacing: 8) {
                         TextField("Écrire à Hermès…", text: $model.draft, axis: .vertical)
@@ -205,5 +240,69 @@ struct MacChatView: View {
         .background(Color(red: 0.06, green: 0.065, blue: 0.08))
         .preferredColorScheme(.dark)
         .onExitCommand { model.cancelRecording() }
+    }
+}
+
+/// The same explicit recording actions live in both the desktop pet and chat.
+struct MacVoiceControls: View {
+    @Bindable var model: MacModel
+    var compact = false
+    var body: some View {
+        VStack(spacing: 8) {
+            if model.listening {
+                HStack(spacing: 8) {
+                    VoiceLevelView(model: model).frame(width: compact ? 60 : 80, height: 22)
+                    Text(model.paused ? "En pause" : "Je t’écoute…")
+                        .font(.system(size: compact ? 11 : 12)).foregroundStyle(.secondary)
+                    if !compact { Spacer() }
+                }
+            } else if model.transcribing {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Transcription…").font(.caption)
+                }
+            }
+            HStack(spacing: compact ? 7 : 10) {
+                Button { model.cancelRecording() } label: {
+                    if compact { Image(systemName: "xmark") } else { Text("Annuler") }
+                }.help("Annuler le message vocal").accessibilityLabel("Annuler le message vocal")
+                    .disabled(model.sending)
+                if model.listening {
+                    Button { model.togglePause() } label: {
+                        Label(model.paused ? "Reprendre" : "Pause", systemImage: model.paused ? "play.fill" : "pause.fill")
+                    }
+                    .accessibilityLabel(model.paused ? "Reprendre l’enregistrement" : "Mettre l’enregistrement en pause")
+                    Button("Terminer") { model.finishRecording() }
+                        .buttonStyle(.borderedProminent).help("Arrêter et voir la transcription avant envoi")
+                } else if model.voiceDraft != nil {
+                    if !compact { Spacer() }
+                    Button { model.sendVoiceDraft() } label: {
+                        Label(model.sending ? "Envoi…" : "Envoyer", systemImage: "arrow.up")
+                    }.buttonStyle(.borderedProminent)
+                        .disabled(!model.maySend || (model.voiceDraft ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }.controlSize(compact ? .small : .regular)
+        }
+        .padding(compact ? 10 : 0)
+        .background {
+            if compact { RoundedRectangle(cornerRadius: 16).fill(.regularMaterial) }
+        }
+    }
+}
+struct VoiceLevelView: View {
+    let model: MacModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    var body: some View {
+        TimelineView(.animation(minimumInterval: reduceMotion ? 0.5 : 1.0 / 15)) { _ in
+            let power = model.paused ? 0 : model.level
+            HStack(spacing: 3) {
+                ForEach(0..<9) { index in
+                    let weight = 1 - abs(Double(index) - 4) / 6
+                    Capsule().fill(model.paused ? Color.secondary : Color.orange)
+                        .frame(width: 3, height: max(3, 22 * power * weight))
+                }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .accessibilityLabel(model.paused ? "Microphone en pause" : "Niveau du microphone")
     }
 }

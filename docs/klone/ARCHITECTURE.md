@@ -77,3 +77,21 @@ Les actualisations réelles restent décidées par watchOS.
 Références Apple : [animations de widgets](https://developer.apple.com/documentation/widgetkit/animating-data-updates-in-widgets-and-live-activities),
 [actualisation des widgets](https://developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date),
 [NSPanel](https://developer.apple.com/documentation/appkit/nspanel).
+
+## Médias et prévisualisation vocale — 19 octobre 2026
+
+`POST /v1/transcribe`, authentifié comme les autres routes appareils, reçoit
+l’audio et renvoie seulement la transcription du Whisper partagé dans binome.
+Cette route ne crée ni ordre, ni message, ni autorisation. Le Mac utilise ensuite
+`/v1/say` après validation du texte. Sans parole reconnue : HTTP 422.
+
+Les photos iPhone sont compressées avant upload (quatre maximum, 1,5 Mo chacune).
+`klone/attachments.mjs` valide emplacement réel, signature du format et taille :
+4 Mio par image, 6 Mio au total. Il produit un message multimodal avec les images
+inline pour la même session Hermès ; aucun chemin local Mac n’est remis au
+conteneur. Les fichiers absents, liens sortants et formats non pris en charge
+sont refusés avant le lancement. Les entrées multimodales restent privées dans
+le journal durable nécessaire à la reprise.
+
+La préparation des builds est protégée par un verrou local, pour éviter les
+collisions de génération entre cibles Mac et iPhone.

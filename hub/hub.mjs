@@ -943,7 +943,6 @@ async function route(text, shownApproval = null, agentId = null, device = null, 
   }
 
   const id = crypto.randomUUID()
-  if (target.driver && agentNamed(target.name)?.runtime === 'hermes' && files.length) throw Object.assign(new Error('Les pièces jointes Hermès ne sont pas encore disponibles. Envoie du texte ou un message vocal.'), { status: 400 })
   const attached = files.length ? `\n\nAttached (files on this Mac; read them): ${files.join(', ')}` : ''
   await deliver(target, { type: 'order', text: soulPrefix(target) + text + attached, said: text, utteranceId: id, device: device ?? 'watch', files })
   target.replyTo = device                                             // its answer is spoken on the device that asked
@@ -1267,6 +1266,19 @@ const handle = async (req, res) => {
       fs.appendFileSync(file, line + '\n')
       return json(res, 200, { ok: true })
     }
+    if (p === '/v1/transcribe' && req.method === 'POST') {
+      // Preview only: Whisper runs locally; no order, approval or conversation mutation.
+      const buf = await readBody(req)
+      if (!buf.length) return json(res, 400, { error: 'L’enregistrement est vide.' })
+      let transcript
+      try { transcript = await transcribe(buf) }
+      catch (error) {
+        if (error.message?.startsWith('Aucune parole')) error.status = 422
+        throw error
+      }
+      if (!transcript.trim()) return json(res, 422, { error: 'Aucune parole reconnue. Tu peux réessayer ou écrire ton message.' })
+      return json(res, 200, { transcript })
+    }
     if (p === '/v1/utterance' && req.method === 'POST') {
       const t0 = Date.now()
       const buf = await readBody(req)
@@ -1287,6 +1299,8 @@ const handle = async (req, res) => {
       if (soul && cfg.hermes) return json(res, 409, { error: 'La personnalité se règle dans Hermès.' })
       if (soul) return json(res, 200, { transcript: text, ...(await soulFromVoice(soul, String(text ?? ''))) })
       const paths = uploaded(files), shown = paths.map(artifactFor).filter(Boolean)
+      if (cfg.hermes && files != null && (!Array.isArray(files) || paths.length !== files.length))
+        return json(res, 400, { error: 'Une photo n’est plus disponible. Sélectionne-la à nouveau.' })
       return json(res, 200, { transcript: text, ...await route(String(text ?? ''), approval ?? null, agent ?? null, deviceOf(device), paths, shown) })
     }
     if (p === '/v1/focus' && req.method === 'POST') {                 // the agent the iPhone shows now

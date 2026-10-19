@@ -23,6 +23,26 @@ enum MacRender {
                 }
             }
         }
-        print("Exported offline Noodle poses.")
+        for mode in ["idle", "recording", "paused", "review"] {
+            let model = MacModel()
+            model.connected = true
+            model.status = "On fait quoi ensemble ?"
+            model.listening = mode == "recording" || mode == "paused"
+            model.paused = mode == "paused"
+            if mode == "review" { model.voiceDraft = "Peux-tu reprendre notre tâche et me résumer la prochaine étape ?" }
+            model.rig.restState = model.listening && !model.paused ? .listening : .idle
+            model.rig.setState(model.rig.restState)
+            for _ in 0..<100 { model.rig.tick(1.0 / 30) }
+            let renderer = ImageRenderer(content: PetView(model: model, open: {}).environment(\.colorScheme, .dark))
+            renderer.proposedSize = ProposedViewSize(width: 260, height: 390)
+            renderer.scale = 2
+            if let image = renderer.cgImage {
+                let file = dir.appendingPathComponent("pet-ui-\(mode).png")
+                if let destination = CGImageDestinationCreateWithURL(file as CFURL, UTType.png.identifier as CFString, 1, nil) {
+                    CGImageDestinationAddImage(destination, image, nil); CGImageDestinationFinalize(destination)
+                }
+            }
+        }
+        print("Exported offline Noodle poses and pet UI states (no microphone or network).")
     }
 }

@@ -76,3 +76,18 @@ Depuis l’iPhone : parler/écrire → traitement Hermès → réponse → retro
 après coupure ; autoriser/refuser la demande exacte sans faux succès.
 Depuis la Watch : même compagnon et même fil, puis recette réseau réelle.
 Ne cocher les validations sur appareil qu’après leur observation.
+
+## Retours d’essai — conversation, présence et médias
+
+- [x] Photo iPhone : import via « + », aperçu, compression et envoi multimodal à Hermès.
+- [x] Reconnaissance réelle d’une image synthétique en session QA isolée ; même profil, sans toucher au fil utilisateur.
+- [x] Prévisualisation vocale Mac séparée de l’envoi, Whisper partagé réutilisé.
+- [x] Pause, reprise, annulation, niveau micro, transcription modifiable et envoi explicite sur Mac.
+- [x] Salutations/invitations selon l’heure et l’activité réelle, questions et accords distincts.
+- [x] Apparences iPhone : liste illustrée, nom et sélection ; fil Hermès conservé.
+- [x] Chat iPhone superposé : canevas plein écran, panneau coulissant à trois tailles, bulles gauche/droite.
+- [x] Avatar conservé pendant la saisie, clavier clair et fermeture explicite ou toucher hors clavier.
+- [x] Widgets : transitions courtes et vraies poses/états, sans boucle d’animation prétendue.
+- [ ] Validation physique du nouveau panneau iPhone et de la saisie avec Harry.
+- [ ] Validation vocale Mac (pause/reprise et relecture) avec Harry.
+- [ ] Défilement Watch : premier correctif insuffisant, nouvelle correction viewport/Crown à faire confirmer.
