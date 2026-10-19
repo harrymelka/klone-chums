@@ -116,3 +116,9 @@ on, Model); don't do that by editing the file. To change their folders:
 - Where things are, and how to propose a change: [CONTRIBUTING.md](CONTRIBUTING.md). How it works:
   [docs/architecture.md](docs/architecture.md).
 - Copy in docs, the app and the agents' prompts is plain and literal: every line states a fact.
+
+## Klone fork
+
+For this fork read COMMENCER-ICI.md and docs/klone/PLAN.md before setup.
+Use klone/ scripts: upstream setup installs duplicate speech/agents and is not needed.
+Keep .local and HubConfig.swift private. Preserve upstream renderer and isolate integrations.

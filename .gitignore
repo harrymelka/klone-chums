@@ -36,3 +36,7 @@ design/noodle/renders/preview.log
 # logs
 *.log
 .claude/
+
+# Klone machine-specific credentials, builds and logs
+.local/
+app/klone.generated.yml
