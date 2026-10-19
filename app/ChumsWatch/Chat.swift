@@ -24,7 +24,7 @@ struct ChatLine: Identifiable, Equatable {
 }
 
 /// A plain native conversation surface. The system ScrollView owns touch and Crown input;
-/// its header and composer are siblings so neither overlays the scrolling messages.
+/// its composer stays below the scrolling messages.
 struct ChatPanel: View {
     let lines: [ChatLine]
     var open: (Artifact) -> Void = { _ in }
@@ -35,21 +35,10 @@ struct ChatPanel: View {
     var talk: (() -> Void)? = nil
     var cancel: (() -> Void)? = nil
     var close: (() -> Void)? = nil
+    var character = "noodle"
 
     var body: some View {
         VStack(spacing: 0) {
-            if let close {
-                Grabber()
-                    .frame(maxWidth: .infinity).frame(height: 24)
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: close)
-                    .gesture(DragGesture(minimumDistance: 12).onEnded { value in
-                        if value.translation.height > 30 || value.predictedEndTranslation.height > 60 { close() }
-                    })
-                    .accessibilityLabel("Fermer la conversation")
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAction { close() }
-            }
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(spacing: 8) {
@@ -111,7 +100,16 @@ struct ChatPanel: View {
             .disabled(sending)
             .accessibilityIdentifier("chat-microphone")
             .accessibilityLabel(listening ? "Envoyer le message vocal" : "Parler dans la conversation")
-
+            if let close {
+                Button(action: close) {
+                    AgentFace(character: character, size: 40)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Circle())
+                }
+                .accessibilityLabel("Revenir au personnage")
+                .accessibilityHint("Ferme la discussion et affiche ton avatar")
+                .accessibilityIdentifier("watch-chat-avatar-return")
+            }
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 10).padding(.top, 4).padding(.bottom, 8)

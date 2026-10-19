@@ -233,7 +233,7 @@ struct ChumsScreen: View {
                           listening: model.listening, sending: model.controller.talk == .sending,
                           talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
                           cancel: { model.micUp(cancel: true) },
-                          close: { chatOpen = false })
+                          close: { chatOpen = false }, character: character)
                     // The native sheet keeps its old navigation inset even with the toolbar hidden.
                     // Use the full page and reserve only the clock's 28-point band ourselves.
                     .frame(width: geometry.size.width, height: max(0, geometry.size.height - 28))

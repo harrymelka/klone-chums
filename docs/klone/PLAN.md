@@ -110,3 +110,10 @@ Ne cocher les validations sur appareil qu’après leur observation.
 - [x] Contrôler le rendu Watch en simulateur et corriger hauteur/clipping avant installation.
 - [ ] Recette automatisée fiable de chaque geste Crown/swipe : Device Hub ne l’a pas permis ; comportement natif antérieur conservé.
 - [ ] Relancer le Mac mis à jour après conservation/traitement du brouillon actuellement ouvert.
+
+## Watch 0.3 (4) — sortie de discussion explicite
+
+- [x] Retirer la poignée du haut.
+- [x] Ajouter le bouton avatar rond à droite de Parler pour revenir au personnage.
+- [x] Vérifier ce retour par un toucher en simulateur.
+- [x] Installer la version signée 0.3 (4) sur la Watch.

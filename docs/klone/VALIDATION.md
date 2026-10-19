@@ -243,3 +243,19 @@ sans redémarrer le conteneur partagé. Docker Desktop n’a pas répondu au con
 d’interface. Ceci bloque une nouvelle recette vocale de bout en bout, sans
 changement backend dans cette révision. Les succès antérieurs ne remplacent pas
 ce constat de fin. Le simulateur Watch a été éteint après les contrôles.
+
+## Watch 0.3 (4) — retour explicite au personnage
+
+La poignée du haut est supprimée. Le pied fixe montre Parler et, à sa droite,
+un bouton rond AgentFace du personnage actuellement sélectionné. Il ferme la
+sheet via la même liaison chatOpen ; onDismiss conserve l’annulation du micro.
+Contrôle réel en simulateur via Device Hub : bouton visible à droite de Parler,
+toucher exécuté, retour à la scène du personnage confirmé par capture. Aucun
+message ni enregistrement micro envoyé pendant ce test.
+
+Build simulateur et Release Watch réussis. Version signée vérifiée dans Info.plist :
+0.3 (4). Le générateur Klone renseigne désormais explicitement les deux champs
+de version Watch, qui conservaient auparavant les valeurs par défaut. Installation
+physique confirmée. Sortie de build dédiée utilisée pour éviter un verrou de
+base de compilation d’un autre build en cours. Les modifications concurrentes
+du rig, du modèle Mac et des ressources ne sont pas incluses dans ce commit.

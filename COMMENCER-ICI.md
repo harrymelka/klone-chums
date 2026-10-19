@@ -105,7 +105,7 @@ pas une voix différente automatiquement.
 ## Chat et complication Watch
 
 La bulle en bas à droite du personnage ouvre le chat. Le fil remplit la hauteur
-utile ; sa poignée permet de le fermer vers le bas. Sa barre fixe contient **Parler**, puis **Envoyer** pendant
+utile ; le bouton rond avec l’avatar, à droite de Parler, revient au personnage. Sa barre fixe contient **Parler**, puis **Envoyer** pendant
 l’enregistrement, avec **Annuler** et une fermeture du chat accessible sans remonter.
 Fermer le chat ou quitter l’app annule un enregistrement encore en cours.
 
@@ -177,7 +177,13 @@ transmise à Hermès ne peut pas être retirée par ces commandes.
 
 ## Identifier cette livraison
 
-Version **0.3 (3)** sur iPhone (sous le titre Hermès), Watch (Réglages → Version)
-et Mac (menu de barre de menus). Le binaire Mac sur disque peut être plus récent
+Versions : **0.3 (3)** sur iPhone (sous le titre Hermès) et Mac (menu de barre
+de menus), **0.3 (4)** sur Watch (Réglages → Version). Le binaire Mac sur disque peut être plus récent
 que le processus déjà ouvert ; relancer le compagnon après traitement de son
 éventuel brouillon non envoyé.
+
+### Retour au personnage sur Watch — 0.3 (4)
+
+Dans la discussion, toucher l’avatar rond en bas à droite de **Parler** pour
+retrouver le personnage. La poignée du haut est retirée. Quitter la discussion
+pendant un enregistrement l’annule, sans envoyer le clip.
