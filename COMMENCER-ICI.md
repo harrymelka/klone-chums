@@ -101,3 +101,20 @@ Les préréglages F1, F3, M1 et M3 sont disponibles dans la passerelle existante
 Les exemples locaux sont sous `.local/voice-previews/`, non publiés dans Git.
 Ces voix restent des préréglages synthétiques ; changer d’avatar ne leur donne
 pas une voix différente automatiquement.
+
+## Chat et complication Watch
+
+Le chat possède maintenant une barre fixe : **Parler**, puis **Envoyer** pendant
+l’enregistrement, avec **Annuler** et une fermeture du chat accessible sans remonter.
+Fermer le chat ou quitter l’app annule un enregistrement encore en cours.
+
+La complication du cadran montre Noodle et un état court lorsque le format le
+permet. La toucher ouvre le chat et lance le micro ; l’envoi reste explicite avec
+**Envoyer**. Le micro ne tourne jamais dans la complication elle-même.
+La complication ne montre aucun message privé. Les actualisations sont soumises
+au budget WidgetKit, pas à une boucle d’animation permanente. Un état non actualisé
+depuis quinze minutes est remplacé par **Ouvrir** pour ne pas laisser une ancienne
+activité ou autorisation affichée comme actuelle.
+
+Une nouvelle image peut nécessiter de retirer puis remettre la complication
+existante dans le cadran si watchOS conserve son ancien aperçu en cache.

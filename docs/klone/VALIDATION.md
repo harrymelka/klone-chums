@@ -29,7 +29,7 @@ Journaux privés dans `.local/` : `upstream-tests.log`, `hermes-tests.log`,
 - Accord développeur Apple : accepté par Harry ; signature débloquée. Un premier téléchargement de profil manquant a été résolu par une seconde compilation.
 - Tailscale : reconnecté par Harry sur Mac et iPhone ; route privée 8444 active.
   Configuration Aura 8443 conservée.
-- Mode développeur de la Watch désactivé.
+- Mode développeur de la Watch activé après reconnexion ; installation autorisée.
 
 ## À vérifier sur appareils
 
@@ -79,3 +79,22 @@ La capture suivante a échoué car la liaison de développement avec la montre
 s’est interrompue. Aucun événement HTTP de la montre n’a encore été observé
 au moment de cette vérification ; sa connexion à la passerelle et le parcours
 vocal restent à tester avec Harry. Installation n’équivaut pas à validation réseau.
+
+## Chat Watch et complication — 19 octobre 2026
+
+- Harry confirme que l’app fonctionne sur la Watch et affiche la conversation.
+- Ajout de commandes fixes au bas du chat : Parler, Envoyer, Annuler et Fermer.
+  Fermer le chat ou passer en arrière-plan annule un enregistrement en cours.
+- Complication : personnage, dernier état disponible et raccourci micro, selon
+  le choix « 1 et 3 » de Harry. Le toucher ouvre le chat et demande le micro ;
+  l’envoi reste explicite. Les mises à jour dépendent de WidgetKit. Un état
+  vieux de quinze minutes est remplacé par « Ouvrir ».
+- Build Release signé réussi avec les cibles Watch, widgets et iPhone.
+  Mise à jour installée et lancée sur les deux appareils physiques.
+- Lancement de l’URL `klonechums://talk` tenté avec le mode de capture sans
+  micro réel ; devicectl confirme le lancement, pas l’état visuel du chat.
+  L’app a ensuite été relancée sans ces options de test.
+- La capture Watch est noire (écran en veille) : le rendu du pied de chat,
+  du cadran et le parcours vocal au toucher restent à confirmer avec Harry.
+- Aucun changement au moteur vocal, à Whisper ou à l’interface Mac dans cette
+  mise à jour. Le Mac héberge le serveur ; une interface compagnon reste à faire.

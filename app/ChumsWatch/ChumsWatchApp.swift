@@ -1,6 +1,7 @@
 import SwiftUI
 import WatchKit
 import CoreMotion
+import WidgetKit
 
 @main
 struct ChumsWatchApp: App {
@@ -44,6 +45,9 @@ struct ChumsScreen: View {
     @AppStorage("demo") private var demo = false
     @AppStorage("voice") private var voice = true
     @AppStorage("stayOn") private var stayOn = true
+    @State private var lastComplicationReload = Date.distantPast
+    @State private var readyForWidgetTalk = false
+    @State private var pendingWidgetTalk = false
     @State private var crown = 0.0
     @State private var showSettings = false
     @State private var chatOpen = false                       // the conversation card is up
@@ -54,6 +58,7 @@ struct ChumsScreen: View {
     @State private var viewing: Artifact?                     // open full screen
     @State private var toast: (artifact: Artifact, line: String)?      // just arrived: a pill above the handle
     @State private var toastHide: Task<Void, Never>?
+    @Environment(\.scenePhase) private var phase
     @Environment(\.isLuminanceReduced) private var reduced
     @State private var calm = false
     private var touches: TouchShow { Capture.shared.touch }   // Simulator captures: the fingertip drawn over the screen
@@ -137,7 +142,11 @@ struct ChumsScreen: View {
             if chatOpen || chatPull > 0 {
                 GeometryReader { g in
                     // the card stops under the clock (watchOS draws the time over everything)
-                    ChatPanel(lines: model.conversation, open: open, scroll: chatScroll)
+                    ChatPanel(lines: model.conversation, open: open, scroll: chatScroll,
+                              listening: model.listening, sending: model.controller.talk == .sending,
+                              talk: { if model.listening { model.micUp(cancel: false) } else { model.micDown() } },
+                              cancel: { model.micUp(cancel: true) },
+                              close: { withAnimation(.snappy(duration: 0.25)) { chatOpen = false; chatDrop = 0 } })
                         .frame(height: g.size.height - Self.chatTop)
                         .offset(y: chatOpen ? Self.chatTop + chatDrop : max(Self.chatTop, g.size.height - chatPull))
                         .overlay(alignment: .top) {
@@ -198,9 +207,32 @@ struct ChumsScreen: View {
         .onChange(of: mode, initial: true) { _, v in model.rig.mode = StageMode(rawValue: v) ?? .world }
         .onChange(of: demo, initial: true) { _, v in model.setDemo(v) }
         .onChange(of: reduced, initial: true) { _, v in model.setDimmed(v) }
-        .onChange(of: chatOpen) { _, open in if open { model.controller.seen() } }
+        .onOpenURL { url in
+            guard url.scheme == "klonechums", url.host == "talk" else { return }
+            // A deliberate tap on the complication opens the conversation and its microphone.
+            chatOpen = true
+            if readyForWidgetTalk { model.micDown() }
+            else { pendingWidgetTalk = true }
+        }
+        .onChange(of: chatOpen) { _, open in
+            if open { model.controller.seen() }
+            else if model.listening { model.micUp(cancel: true) }
+        }
         // the screen stays on while you hold the watch and look at it, and sleeps when it's put down (StayOn)
         .onChange(of: stayOn, initial: true) { _, v in StayOn.shared.enabled = v }
+        .onChange(of: hub.state?.agents) { _, _ in
+            // Foreground state changes can refresh the complication; avoid reloads on every poll.
+            if Date().timeIntervalSince(lastComplicationReload) >= 15 {
+                lastComplicationReload = Date()
+                WidgetCenter.shared.reloadTimelines(ofKind: "chums")
+            }
+        }
+        .onChange(of: phase) { _, value in
+            if value == .background {
+                if model.listening { model.micUp(cancel: true) }
+                WidgetCenter.shared.reloadTimelines(ofKind: "chums")
+            }
+        }
         .onChange(of: keepOn.problem, initial: true) { _, v in model.controller.notice = v }
         .sheet(isPresented: $showSettings) {
             AgentsView(agents: hub.state?.agents ?? Agents.known, active: $agent,
@@ -222,6 +254,12 @@ struct ChumsScreen: View {
         }
         .task {
             await model.prepare()
+            readyForWidgetTalk = true
+            if pendingWidgetTalk {
+                pendingWidgetTalk = false
+                chatOpen = true
+                model.micDown()
+            }
             if UserDefaults.standard.bool(forKey: "openChat") { try? await Task.sleep(for: .seconds(8)); chatOpen = true }   // for Simulator captures
             if UserDefaults.standard.bool(forKey: "openSettings") { try? await Task.sleep(for: .seconds(3)); showSettings = true }
             // another agent finished, asked, needs an approval or showed you something: its pill, and a tap on the wrist

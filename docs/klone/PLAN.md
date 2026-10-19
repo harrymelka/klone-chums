@@ -45,7 +45,12 @@ iPhone puis Watch en priorité. Conserver le design upstream avant toute refonte
 - [x] L’app iPhone a rejoint la passerelle privée (événement de lancement reçu).
 - [x] Activer le mode développeur Watch.
 - [x] Installation et lancement sur Watch physique confirmés.
-- [ ] Connexion réseau, parole et autorisation sur Watch physique à confirmer avec Harry.
+- [x] Harry confirme que l’application Watch fonctionne et affiche la conversation.
+- [ ] Validation des autorisations sur Watch physique.
+- [x] Installer le micro fixe dans le chat Watch (build signé et lancement confirmés).
+- [ ] Vérifier avec Harry les boutons Parler / Envoyer / Annuler / Fermer dans le chat.
+- [x] Installer la complication personnage + état + raccourci micro, choix 1 et 3 de Harry.
+- [ ] Vérifier avec Harry le rendu du cadran et le lancement vocal au toucher.
 - [ ] Essais autre Wi-Fi / cellulaire ; autonomie distante non revendiquée avant ces essais.
 
 ## 5 — Suite après validation du cœur

@@ -33,6 +33,8 @@ dans une proposition de modification ou une archive publique.
 - `hub/hub.mjs` : configuration isolée, fournisseurs voix, historique, acheminement
   asynchrone et confirmation d’autorisation, absence de soul Claude en mode Hermès.
 - `app/ChumsPhone/AgentSheet.swift`, `app/ChumsWatch/Soul.swift` : réglages Hermès en lecture seule.
+- `app/ChumsWatch/Chat.swift`, `ChumsWatchApp.swift` : micro et fermeture fixes dans le chat ; rechargement de la complication.
+- `app/ChumsWidget/ChumsWidget.swift` : Noodle et dernier état, actualisation WidgetKit limitée par le système.
 - `app/ChumsPhone/Stage.swift` : personnage sans cadre de montre ni couronne décorative sur iPhone.
 - `app/ChumsWatch/Voice.swift` : voix système française de secours.
 - `app/ChumsWatch/StayOn.swift` : maintien par API privée désactivé.

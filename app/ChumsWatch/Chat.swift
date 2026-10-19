@@ -31,6 +31,11 @@ struct ChatPanel: View {
     var open: (Artifact) -> Void = { _ in }
     /// Simulator captures: scroll to a line (or "end"), as a finger would, over that many seconds.
     var scroll: (id: String, seconds: Double)? = nil
+    var listening = false
+    var sending = false
+    var talk: (() -> Void)? = nil
+    var cancel: (() -> Void)? = nil
+    var close: (() -> Void)? = nil
     @FocusState private var focused: Bool
 
     static let card = UnevenRoundedRectangle(topLeadingRadius: 22, topTrailingRadius: 22)
@@ -60,6 +65,41 @@ struct ChatPanel: View {
                 }
             }
             Grabber().padding(.top, 6)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let talk {
+                HStack(spacing: 8) {
+                    if listening {
+                        Button { cancel?() } label: {
+                            Image(systemName: "xmark").frame(width: 40, height: 44)
+                        }
+                        .accessibilityLabel("Annuler l’enregistrement")
+                    }
+                    Button(action: talk) {
+                        HStack(spacing: 6) {
+                            if sending { ProgressView().controlSize(.small) }
+                            else { Image(systemName: listening ? "arrow.up" : "mic.fill") }
+                            Text(sending ? "Envoi…" : listening ? "Envoyer" : "Parler")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(listening ? Pal.green : Color.white.opacity(0.15), in: Capsule())
+                        .foregroundStyle(listening ? .black : .white)
+                    }
+                    .disabled(sending)
+                    .accessibilityIdentifier("chat-microphone")
+                    .accessibilityLabel(listening ? "Envoyer le message vocal" : "Parler dans la conversation")
+                    if !listening, let close {
+                        Button(action: close) {
+                            Image(systemName: "chevron.down").frame(width: 40, height: 44)
+                        }
+                        .accessibilityLabel("Fermer la conversation")
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 8).padding(.vertical, 6)
+                .background(.ultraThinMaterial)
+            }
         }
         .clipShape(Self.card)                                                // only the card's own edge clips
         .glassEffect(.regular.tint(.black.opacity(0.32)), in: Self.card)
