@@ -1,7 +1,7 @@
 import SwiftUI
 #if os(watchOS)
 import WatchKit
-#else
+#elseif canImport(UIKit)
 import UIKit
 #endif
 
@@ -13,9 +13,9 @@ enum Renderer {
         return (s, (size.width - DESIGN.width * s) / 2, (size.height - DESIGN.height * s) / 2)
     }
 
-    static func draw(_ r: Rig, _ context: GraphicsContext, size: CGSize) {
+    static func draw(_ r: Rig, _ context: GraphicsContext, size: CGSize, background: Color? = .black) {
         var ctx = context
-        ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(.black))
+        if let background { ctx.fill(Path(CGRect(origin: .zero, size: size)), with: .color(background)) }
         let f = fit(size)
         ctx.translateBy(x: f.ox, y: f.oy); ctx.scaleBy(x: f.s, y: f.s)
         let p = r.pose()

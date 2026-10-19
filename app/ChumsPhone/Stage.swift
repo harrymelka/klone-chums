@@ -14,6 +14,9 @@ struct CharacterStage: View {
     let paused: Bool
     let open: () -> Void
     let settings: () -> Void
+    var background: Color? = .black
+    var magnification = 1.0
+    var verticalOffset = 0.0
     @State private var crop = Crop()
     @State private var twisted = 0.0
 
@@ -28,12 +31,12 @@ struct CharacterStage: View {
                 Canvas { ctx, size in
                     let dt = crop.last.map { tl.date.timeIntervalSince($0) } ?? 1
                     crop.last = tl.date
-                    crop.k += ((small ? 1.3 : 1) - crop.k) * min(1, max(0, dt) * 9)
+                    crop.k += ((small ? 1.3 : magnification) - crop.k) * min(1, max(0, dt) * 9)
                     var c = ctx
-                    c.translateBy(x: size.width / 2, y: size.height / 2)
+                    c.translateBy(x: size.width / 2, y: size.height / 2 + verticalOffset * size.height)
                     c.scaleBy(x: crop.k, y: crop.k)
                     c.translateBy(x: -size.width / 2, y: -size.height / 2)
-                    Renderer.draw(model.rig, c, size: size)
+                    Renderer.draw(model.rig, c, size: size, background: background)
                 }
             }
             .mask {
@@ -51,8 +54,8 @@ struct CharacterStage: View {
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
-                    .onChanged { v in model.drag(v.location, in: g.size) }
-                    .onEnded { v in _ = model.dragEnd(v.location, in: g.size) },
+                    .onChanged { v in model.drag(touchPoint(v.location, size: g.size), in: g.size) }
+                    .onEnded { v in _ = model.dragEnd(touchPoint(v.location, size: g.size), in: g.size) },
                 including: small ? .none : .all
             )
             .simultaneousGesture(
@@ -78,6 +81,12 @@ struct CharacterStage: View {
         .accessibilityHint(small ? "Shows \(agent.name) in front" : "Hold to talk to \(agent.name)")
         .accessibilityAddTraits(small ? .isButton : [])
     }
+    private func touchPoint(_ point: CGPoint, size: CGSize) -> CGPoint {
+        let scale = max(0.01, crop.k)
+        return CGPoint(x: size.width / 2 + (point.x - size.width / 2) / scale,
+                       y: size.height / 2 + (point.y - size.height / 2 - verticalOffset * size.height) / scale)
+    }
+
 }
 
 /// A scale that follows your voice while `on` (the character in its row, the microphone held). The voice's level is

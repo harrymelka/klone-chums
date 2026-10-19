@@ -13,7 +13,8 @@ adding paid transcription or voice APIs.
 
 ## Product direction
 
-Keep the existing Chums character engine, gestures and native SwiftUI interface.
+Keep the existing Chums character engine, gestures and native SwiftUI foundations.
+Use the confirmed presentation choices below for each device.
 Prefer small, isolated changes that remain easy to merge with upstream.
 The companion should feel present, approachable and useful on each device.
 On iPhone, show the character directly in the phone interface: a simulated
@@ -25,3 +26,12 @@ the native watch interface and its real Crown interactions.
 Preserve existing accessibility labels, Reduce Motion support, touch targets
 and microphone cancellation. Reflect actual agent state and confirmed approvals.
 Do not trade working interactions for decorative redesign.
+
+## Confirmed October 19 direction
+
+Harry selected iPhone proposal B (warm light background), with the visible
+conversation from C. Give Noodle a large unframed stage above the thread; keep
+speech controls fixed below. macOS gets a transparent animated desktop companion
+and a separate chat window, all on the same Hermes conversation. The Watch face
+uses one action label and state-specific Noodle poses with a question mark when
+Hermes needs a reply, with brief system-managed transitions rather than a loop.

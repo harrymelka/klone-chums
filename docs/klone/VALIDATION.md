@@ -98,3 +98,41 @@ vocal restent à tester avec Harry. Installation n’équivaut pas à validation
   du cadran et le parcours vocal au toucher restent à confirmer avec Harry.
 - Aucun changement au moteur vocal, à Whisper ou à l’interface Mac dans cette
   mise à jour. Le Mac héberge le serveur ; une interface compagnon reste à faire.
+
+## Mac et choix visuels — 19 octobre 2026
+
+- Cible macOS Release compilée, signée avec l’équipe existante et vérifiée par
+  `codesign --verify --deep --strict`. Aucun service au login n’a été ajouté.
+- Le contrôle intégré `-selfCheck YES` a décodé l’état réel depuis l’API appareils
+  locale et retrouvé douze lignes du fil partagé. Aucun message n’a été envoyé.
+  Les secrets, les identifiants du fil et la cible Whisper ont été vérifiés sans
+  imprimer leurs valeurs privées.
+- Vérification native : personnage sans carré noir, deux captures avec des poses
+  différentes, ouverture du chat au clic, historique réel présent, saisie activant
+  Envoyer puis effacement du brouillon sans envoi. Le défilement laisse les
+  commandes texte et vocal accessibles. Le dernier build Mac est lancé.
+- Le test vocal au microphone Mac et la lecture d’une nouvelle réponse restent
+  à faire avec Harry ; aucun son ambiant n’a été enregistré pendant les contrôles.
+- Trois maquettes rendues avec le rig Chums ; Harry retient B (fond clair), avec
+  la conversation visible de C. La maquette interactive a été contrôlée dans
+  le navigateur, y compris les changements de pose et le point d’interrogation.
+- Première compilation iPhone de la nouvelle vue claire réussie. Build final,
+  installation et revue physique de cette vue consignés ci-dessous après exécution.
+
+- Build final iPhone/Watch signé réussi et installation confirmée sur les deux
+  appareils. Premier lancement iPhone refusé parce que verrouillé, puis lancement
+  réussi après le « go » de Harry. La Watch a été installée et lancée également.
+- Deux captures iPhone physiques : première au raccordement, deuxième avec
+  connexion rétablie, historique partagé affiché, fond clair et commandes fixes.
+  Le recadrage final remonte légèrement Noodle pour corriger la queue coupée.
+- Le rendu du nouveau cadran et sa transition à un changement d’état restent à
+  valider sur la Watch ; l’installation seule n’est pas présentée comme cette preuve.
+
+- Recadrage final recompilé, signé, installé et lancé sur iPhone. La capture
+  physique confirme la queue entière dans la scène, sans bord noir. Les commandes
+  de capture ont été exécutées sans démarrer le microphone.
+- Contrôle final `klone/check.py` : hub, capacités Hermès, voix française, route
+  privée appareils et Whisper dans le conteneur existant tous disponibles.
+- Analyse des sources non ignorées : aucun des secrets de connexion locaux
+  retrouvé dans les fichiers à publier. `git diff --check` et vérifications de
+  syntaxe des scripts Python/zsh réussis.

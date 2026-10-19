@@ -10,12 +10,15 @@ struct ChumsPhoneApp: App {
     @State private var hub = HubClient()
     @Environment(\.scenePhase) private var phase
 
-    init() { CharacterKind.migrate() }
+    init() {
+        UserDefaults.standard.register(defaults: ["noodleLook": "lit"])
+        CharacterKind.migrate()
+    }
 
     var body: some Scene {
         WindowGroup {
-            HomeView(hub: hub)
-                .preferredColorScheme(.dark)
+            KloneHomeView(hub: hub)
+                .preferredColorScheme(.light)
                 .onChange(of: phase, initial: true) { old, p in
                     // a system alert or Control Center over it (inactive) keeps it listening; only the background stops it
                     if p == .active { hub.start() } else if p == .background { hub.stop() }

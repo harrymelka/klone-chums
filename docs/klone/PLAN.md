@@ -50,6 +50,7 @@ iPhone puis Watch en priorité. Conserver le design upstream avant toute refonte
 - [x] Installer le micro fixe dans le chat Watch (build signé et lancement confirmés).
 - [ ] Vérifier avec Harry les boutons Parler / Envoyer / Annuler / Fermer dans le chat.
 - [x] Installer la complication personnage + état + raccourci micro, choix 1 et 3 de Harry.
+- [x] Installer le cadran simplifié : un libellé, poses de Noodle selon l’état, point d’interrogation.
 - [ ] Vérifier avec Harry le rendu du cadran et le lancement vocal au toucher.
 - [ ] Essais autre Wi-Fi / cellulaire ; autonomie distante non revendiquée avant ces essais.
 
@@ -60,8 +61,14 @@ iPhone puis Watch en priorité. Conserver le design upstream avant toute refonte
 - [ ] Choix d’apparence sans multiplier profils et mémoires.
 - [ ] Appairage dynamique / QR code, révocation par appareil.
 - [ ] Notifications push et comportement en arrière-plan.
-- [ ] Présence Mac inspirée de Coucou.
-- [ ] Refonte visuelle et personnage original.
+- [x] Compagnon Mac natif : Noodle animé transparent, fenêtre de conversation, texte et capture vocale.
+- [x] Mac relié au même fil `klone-chums-main`, sans nouveau profil.
+- [ ] Recette vocale Mac avec autorisation du micro par Harry.
+- [x] Proposer trois compositions iPhone avec le personnage existant.
+- [x] Choix de Harry : B, fond clair, avec le fil visible de C.
+- [x] Installer et observer le fond clair, le grand personnage et le fil partagé sur iPhone physique.
+- [ ] Recette des contrôles de la nouvelle vue iPhone avec Harry.
+- [ ] Personnage original, plus tard.
 
 ## Critère de première livraison validée
 

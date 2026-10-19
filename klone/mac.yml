@@ -1,0 +1,41 @@
+name: KloneMac
+options:
+  deploymentTarget:
+    macOS: '14.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    MACOSX_DEPLOYMENT_TARGET: '14.0'
+    DEVELOPMENT_TEAM: ZH253G7YME
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: '0.2'
+    CURRENT_PROJECT_VERSION: '2'
+targets:
+  KloneMac:
+    type: application
+    platform: macOS
+    sources:
+      - ../app/KloneMac
+      - path: ../app/ChumsWatch/Rig
+      - ../app/ChumsWatch/AgentFace.swift
+      - ../app/ChumsWatch/HubConfig.swift
+      - path: ../app/ChumsWatch/noodle-shapes.bin
+        buildPhase: resources
+      - ../app/Shared/Characters.xcassets
+    info:
+      path: ../app/build/KloneMac-Info.plist
+      properties:
+        CFBundleDisplayName: Klone Chums Mac
+        LSUIElement: true
+        NSMicrophoneUsageDescription: Enregistre un message vocal uniquement après ton clic sur Parler. Tu peux l’envoyer ou l’annuler.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSHighResolutionCapable: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.harry.klonechums.mac
+        PRODUCT_NAME: Klone Chums Mac
+        CODE_SIGN_ENTITLEMENTS: $(SRCROOT)/../../KloneMac/KloneMac.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: $(SRCROOT)/../KloneMac-Info.plist

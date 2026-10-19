@@ -45,3 +45,35 @@ ignoré par Git ; l’appairage dynamique est une phase suivante.
 Aucun service launchd, connexion fournisseur IA, tunnel public ou modification
 de SOUL/mémoire n’est installé par les scripts Klone. Le serveur est un processus
 local détaché ; double-cliquer le lanceur le redémarre si nécessaire.
+
+## Client macOS et présentation iPhone
+
+`app/KloneMac` est une app AppKit/SwiftUI indépendante du processus serveur.
+Elle utilise `http://127.0.0.1:17772/v1/*` et la même authentification appareils
+que la Watch. `X-Chums-Device: mac` ou `device: mac` sélectionne uniquement
+le destinataire de la lecture audio ; la cible reste `noodle`, rattachée au fil
+Hermès `klone-chums-main`. Il n’y a pas de deuxième mémoire, de nouveau profil
+ni de nouvelle instance Whisper.
+
+Le client lit le même état par long-poll. Il ignore les voix de l’historique
+initial et les réponses destinées aux autres appareils. La capture est explicite,
+annulable, et utilise AVAudioRecorder ; les fichiers temporaires sont supprimés
+après annulation ou envoi. La voix est récupérée depuis `/v1/speech/…`, avec
+un repli Apple français si elle manque. Le personnage et le chat sont deux
+fenêtres ; le menu de barre système permet de retrouver ou masquer le personnage.
+
+`KloneHomeView` reprend le même `ScreenModel` que Chums. Le renderer accepte
+un fond transparent et le stage un agrandissement ; l’inverse de cet agrandissement
+est appliqué aux coordonnées tactiles. Le fil et le compositeur sont natifs,
+avec une zone de défilement distincte des commandes. L’ancien `HomeView` est conservé.
+
+La complication utilise des poses PNG rendues depuis le rig existant. Elle
+peut changer de pose et faire une transition courte lorsque WidgetKit actualise
+les données. Elle ne peut pas faire tourner l’animation continue de l’app sur
+le cadran. L’expiration de l’état après quinze minutes retire les anciennes
+indications de travail ou de question, et montre de nouveau l’action Parler.
+Les actualisations réelles restent décidées par watchOS.
+
+Références Apple : [animations de widgets](https://developer.apple.com/documentation/widgetkit/animating-data-updates-in-widgets-and-live-activities),
+[actualisation des widgets](https://developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date),
+[NSPanel](https://developer.apple.com/documentation/appkit/nspanel).

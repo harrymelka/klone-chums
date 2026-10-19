@@ -113,8 +113,42 @@ permet. La toucher ouvre le chat et lance le micro ; l’envoi reste explicite a
 **Envoyer**. Le micro ne tourne jamais dans la complication elle-même.
 La complication ne montre aucun message privé. Les actualisations sont soumises
 au budget WidgetKit, pas à une boucle d’animation permanente. Un état non actualisé
-depuis quinze minutes est remplacé par **Ouvrir** pour ne pas laisser une ancienne
+depuis quinze minutes revient à **Parler**, sans afficher une ancienne tâche pour ne pas laisser une ancienne
 activité ou autorisation affichée comme actuelle.
 
 Une nouvelle image peut nécessiter de retirer puis remettre la complication
 existante dans le cadran si watchOS conserve son ancien aperçu en cache.
+
+## Compagnon Mac
+
+Double-cliquer **Lancer le compagnon Mac.command**. Le personnage apparaît sur
+le bureau, sans fond noir. Le bouton **Parler** ouvre la conversation et demande
+l’autorisation macOS du microphone au premier usage. Cliquer ensuite **Envoyer**
+ou **Annuler**. Un clic sur le personnage ouvre seulement le fil.
+
+La petite poignée au-dessus du personnage permet de le déplacer. Le menu Klone
+Chums dans la barre de menus permet de retrouver le fil, masquer le personnage,
+le replacer ou quitter. Aucun lancement automatique à l’ouverture de session.
+
+Le client Mac utilise la passerelle locale existante, la même session
+`klone-chums-main` que l’iPhone et la Watch, Whisper dans `binome` et la synthèse
+Supertonic existante. Seules les réponses demandées depuis le Mac y sont lues ;
+l’historique n’est pas relu au démarrage. Le bouton haut-parleur coupe les réponses
+vocales. Fermer la fenêtre ou mettre le Mac en veille annule un enregistrement
+en cours. Un enregistrement de plus d’une minute est annulé, sans envoi.
+
+Pour reconstruire : `klone/build-mac.sh`. L’app signée reste dans
+`app/build/mac/products/Release/Klone Chums Mac.app`.
+
+## Présentation iPhone choisie
+
+Harry a choisi la piste **B, fond clair**, avec le **fil visible** de C :
+Noodle en grand sur un fond chaud, sans carré de montre, derniers échanges
+défilants en dessous, commandes fixes en bas. Une commande agrandit le fil.
+La proposition interactive est dans `docs/klone/design/index.html` (paramètre
+`?selected=1` pour le choix retenu). Les textes des maquettes sont fictifs.
+
+Sur le cadran Watch, une seule indication remplace le doublon micro/Prêt :
+**Parler** au repos, ou l’état courant. Noodle change de pose ; un **?** apparaît
+s’il attend une réponse. Les transitions sont courtes et dépendent de watchOS ;
+l’animation continue est réservée à l’app ouverte et au compagnon Mac.

@@ -21,20 +21,28 @@ struct Entry: TimelineEntry {
         return date.timeIntervalSince(updatedAt) >= 15 * 60
     }
     var label: String {
-        guard !stale, let agent else { return "Ouvrir" }
-        if agent.needs || agent.status == "waiting" { return "Besoin de toi" }
+        guard !stale, let agent else { return "Parler" }
+        if agent.needs || agent.status == "waiting" { return "Une question" }
         switch agent.status {
         case "working": return "Travaille"
         case "compacting": return "Réfléchit"
         case "blocked": return "À vérifier"
         case "limited": return "En attente"
         case "offline": return "Hors ligne"
-        default: return "Prêt"
+        default: return "Parler"
         }
+    }
+    var attention: Bool { !stale && (agent?.needs == true || agent?.status == "waiting") }
+    var pose: String {
+        if attention { return "needs" }
+        guard !stale else { return "idle" }
+        if agent?.status == "working" { return "working" }
+        if agent?.status == "compacting" { return "thinking" }
+        return "idle"
     }
     var symbol: String {
         guard !stale, let agent else { return "arrow.clockwise" }
-        if agent.needs || agent.status == "waiting" { return "exclamationmark.bubble.fill" }
+        if agent.needs || agent.status == "waiting" { return "questionmark" }
         switch agent.status {
         case "working", "compacting": return "ellipsis"
         case "blocked", "limited", "offline": return "exclamationmark"
@@ -88,39 +96,46 @@ struct Provider: TimelineProvider {
 struct ChumsWidgetView: View {
     let entry: Entry
     @Environment(\.widgetFamily) private var family
+    @Environment(\.isLuminanceReduced) private var reduced
     private var character: String {
         let value = entry.agent?.character ?? "noodle"
         return ["noodle", "stretch", "peeps", "squint", "ray", "tangle", "crunch", "nana"].contains(value) ? value : "noodle"
     }
     private var face: some View {
-        Image("avatar-\(character)")
-            .resizable().widgetAccentedRenderingMode(.fullColor).scaledToFit()
-            .accessibilityHidden(true)
+        ZStack(alignment: .topTrailing) {
+            Image(character == "noodle" ? "noodle-\(entry.pose)" : "avatar-\(character)")
+                .resizable().widgetAccentedRenderingMode(.fullColor).scaledToFit()
+                .scaleEffect(character == "noodle" ? 1.4 : 1)
+                .id(entry.pose)
+                .transition(.opacity.combined(with: .scale(scale: 0.94)))
+            if entry.attention {
+                Text("?").font(.system(size: 16, weight: .bold, design: .rounded))
+                    .foregroundStyle(.orange).padding(2)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(reduced ? nil : .easeOut(duration: 0.45), value: entry.pose)
+        .accessibilityHidden(true)
     }
     var body: some View {
         Group {
             switch family {
             case .accessoryRectangular:
-                HStack(spacing: 6) {
-                    face.frame(width: 44, height: 44)
-                    VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 8) {
+                    face.frame(width: 56, height: 56)
+                    if entry.label == "Parler" {
                         Label("Parler", systemImage: "mic.fill").font(.headline).lineLimit(1)
-                        Label(entry.label, systemImage: entry.symbol)
-                            .font(.caption2).foregroundStyle(entry.tint).lineLimit(1)
+                    } else {
+                        Text(entry.label).font(.headline).lineLimit(2)
                     }
                     Spacer(minLength: 0)
                 }
             case .accessoryInline:
-                Label("Parler · \(entry.label)", systemImage: "mic.fill")
+                Label(entry.label, systemImage: entry.symbol)
             case .accessoryCorner:
                 face.padding(4).widgetLabel { Text(entry.label) }
             default:
-                ZStack(alignment: .bottomTrailing) {
-                    face.padding(5)
-                    Image(systemName: entry.symbol).font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(entry.tint).padding(3)
-                        .background(.black, in: Circle()).padding(1)
-                }
+                face.padding(5)
             }
         }
         .containerBackground(for: .widget) { Color.black }

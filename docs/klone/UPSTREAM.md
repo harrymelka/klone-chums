@@ -43,3 +43,18 @@ Nos modules et outils sont dans `klone/`. Le fichier XcodeGen original reste
 inchangé ; `klone/prepare.py` génère une variante locale avec notre nom d’app.
 Une mise à jour upstream n’est pas encore arrivée pendant cette intégration :
 aucune fusion future n’est présentée comme déjà validée.
+
+## Compagnon Mac et présentation iPhone claire
+
+- `app/KloneMac/`, `klone/mac.yml`, `klone/build-mac.sh` : cible macOS séparée.
+  Réutilise directement le rig Chums, avec son propre client de l’API appareils
+  du hub existant. Aucun changement à la session Hermès ni au backend.
+- `Renderer.draw` : fond optionnel, noir par défaut ; import UIKit conditionnel
+  pour compiler sur Mac. Les rendus Watch hérités gardent leur comportement.
+- `KloneHomeView.swift` : présentation iPhone propre au fork. `HomeView.swift`
+  upstream conservé ; seul le point d’entrée iPhone sélectionne la nouvelle vue.
+- `CharacterStage` : fond et agrandissement configurables, coordonnées tactiles
+  inversées pour suivre l’agrandissement.
+- Quatre poses PNG issues du rig dans `Shared/Characters.xcassets`, utilisées
+  par le widget Watch. Le générateur local ajoute le schéma URL de la Watch.
+- Maquettes et choix utilisateur dans `docs/klone/design/`.
