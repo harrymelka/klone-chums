@@ -17,7 +17,7 @@ import ObjectiveC
 final class StayOn {
     static let shared = StayOn()
     var onEvent: ((String) -> Void)?
-    var enabled = true { didSet { if !enabled { apply(held: false, force: true) } } }
+    var enabled = false { didSet { if !enabled { apply(held: false, force: true) } } }
 
     private var lastMoved = Date.distantPast, facingSince: Date?, notFacingSince: Date?, current: Bool?, lastSet = Date.distantPast, flip = false
     /// The last touch or crown (the app tells it): the idle countdown runs from there.
@@ -56,11 +56,15 @@ final class StayOn {
     private typealias SetIdle = @convention(c) (AnyObject, Selector, Double, Bool, Bool) -> Void
     /// PUICApplication.sharedPUICApplication.setExtendedIdleTime(idle, disablesSleepGesture: !sleepGesture, wantsAutorotation: false)
     @discardableResult static func set(idle: Double, sleepGesture: Bool) -> Bool {
+        // Klone v1 uses normal watchOS foreground lifetime.
+        return false
+        /*
         guard let cls = NSClassFromString("PUICApplication") as? NSObject.Type else { return false }
         let shared = NSSelectorFromString("sharedPUICApplication"), sel = NSSelectorFromString("setExtendedIdleTime:disablesSleepGesture:wantsAutorotation:")
         guard cls.responds(to: shared), let app = cls.perform(shared)?.takeUnretainedValue() as? NSObject, app.responds(to: sel) else { return false }
         unsafeBitCast(app.method(for: sel), to: SetIdle.self)(app, sel, idle, !sleepGesture, false)
         return true
+        */
     }
 }
 

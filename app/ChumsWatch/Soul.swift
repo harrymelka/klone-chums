@@ -32,10 +32,12 @@ struct SoulView: View {
                 }
                 .padding(.leading, 4)
                 // what you can change: each a tile that opens a list
-                runtimeTile
-                modelTile
-                permissionTile
-                voiceTile
+                if agent.runtime != "hermes" {
+                    runtimeTile
+                    modelTile
+                    permissionTile
+                    voiceTile
+                }
                 if let m = message { messageTile(m).padding(.top, 4) }
                 // who it is: words on the page, no tiles
                 if let c = shown {
@@ -48,7 +50,7 @@ struct SoulView: View {
                     .padding(.horizontal, 6).padding(.top, 8)
                 } else { ProgressView().padding(.top, 8) }
                 // at the bottom: change it, or take the last change back
-                controls.padding(.top, 10)
+                if agent.runtime != "hermes" { controls.padding(.top, 10) }
                 if card?.canUndo == true && (step == .card || step == .saved) {
                     Button { Task { await undo() } } label: {
                         Label("Undo last change", systemImage: "arrow.uturn.backward").font(.system(size: 14, weight: .medium))

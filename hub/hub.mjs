@@ -9,6 +9,7 @@
 //
 // Speech-to-text runs in a kept-alive `whisperkit-cli serve` child so each utterance costs ~0.2 s.
 
+import { SharedWhisper } from '../klone/transcription.mjs'
 import http from 'node:http'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -18,7 +19,7 @@ import { spawn, execFile } from 'node:child_process'
 import { startRunners, startRunner, runByHub } from './runtimes.mjs'
 import { OWNER, Owner, PAGE_GUIDE } from './standing.mjs'
 
-const CONFIG_DIR = path.join(os.homedir(), '.chums')
+const CONFIG_DIR = process.env.CHUMS_CONFIG_DIR || path.join(os.homedir(), '.chums')
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json')
 const WHISPER_PORT = 50061
 const KOKORO_PORT = 50062                                            // the agents' voices (tools/kokoro-server.py)
@@ -77,7 +78,7 @@ const tools = []             // { id, session, type, text, ok, at } — every to
 // its soul screen on the watch), where it works and how to use its tools; a character with no entry gets one with the
 // defaults below. Who it is lives in its soul (below). A session is an agent's when its name is the agent's id
 // (bin/chums-agents); everything said, shown, asked or done is tagged with the agent it came from.
-const AGENTS_PATH = path.join(os.homedir(), '.chums/agents.json')
+const AGENTS_PATH = path.join(CONFIG_DIR, 'agents.json')
 const HOME = os.homedir()
 /// The characters the watch draws, in order; each is an agent, its id the character's.
 const LOOKS = ['noodle', 'stretch', 'peeps', 'squint', 'ray', 'tangle', 'crunch', 'nana']
@@ -105,7 +106,7 @@ const saveAgents = () => fs.writeFileSync(AGENTS_PATH, JSON.stringify(agents, nu
 function loadAgents() {
   const list = readSettings(AGENTS_PATH, [], v => Array.isArray(v) && v.every(a => a && typeof a === 'object' && typeof a.id === 'string'),
     'a valid JSON list of agents, each with an "id" (tools/agents.example.json)')
-  const missing = LOOKS.filter(c => !list.some(a => a.id === c))
+  const missing = cfg.hermes ? [] : LOOKS.filter(c => !list.some(a => a.id === c))
   let filled = false
   for (const a of list) {
     if (LOOKS.includes(a.id)) a.character = a.id                       // a character's agent is that character
@@ -156,6 +157,7 @@ function parseSoul(text) {
 }
 const renderSoul = s => `---\nname: ${s.name}\nowns: ${s.owns ?? ''}\nrefers: ${s.refers ?? ''}\nvoice: ${s.voice ?? ''}\n---\n${(s.body ?? '').trim()}\n`
 function soulOf(id) {
+  if (agentNamed(id)?.runtime === 'hermes') return { name: agentNamed(id).name, owns: 'Ton compagnon Hermès : mémoire, conversation et outils.', refers: '', voice: 'Français', body: 'Personnalité et autorisations gérées dans Hermès.' }
   try { return parseSoul(fs.readFileSync(soulFile(id), 'utf8')) } catch { return { name: agentNamed(id)?.name ?? id, ...seedOf(id) } }
 }
 const soulRev = id => { try { return crypto.createHash('sha1').update(fs.readFileSync(soulFile(id))).digest('hex').slice(0, 10) } catch { return 'seed' } }
@@ -335,7 +337,7 @@ function publicState() {
     sessions: [...sessions.values()].map(s => ({
       id: s.id, name: s.name, lastLine: s.lastLine ?? null, subagents: s.subagents ?? 0, status: statusOf(s),
     })),
-    runtimes: available(),          // what an agent can be switched to on this Mac
+    runtimes: cfg.hermes ? ['hermes'] : available(),          // what an agent can be switched to on this Mac
     // every agent, running or not: the watch's switcher and its "needs you" badge
     agents: agents.map(a => {
       const s = sessionOf(a.id)
@@ -368,7 +370,7 @@ let saveT = null
 const saveConversation = () => { clearTimeout(saveT); saveT = setTimeout(() => fs.writeFile(CONVERSATION, JSON.stringify(spoken.map(({ rev: _, ...l }) => l)), () => {}), 500) }
 // Each agent keeps its own lines (KEPT_PER_AGENT, the hub's own notes as one more), so a busy agent never pushes a
 // quiet one's conversation out; the apps get the newest SHOWN_PER_AGENT of each.
-const KEPT_PER_AGENT = 40, SHOWN_PER_AGENT = 20
+const KEPT_PER_AGENT = cfg.hermes ? 100 : 40, SHOWN_PER_AGENT = cfg.hermes ? 100 : 20
 const whose = l => l.agent ?? l.session
 function newestPerAgent(n) {
   const count = new Map(), keep = []
@@ -397,7 +399,8 @@ function say(text, session = 'Chums', kind = 'info', extra = {}) {
   // 0.2 s), with the audio in the same answer the watch is waiting on: no second trip for it. Never held over 1.5 s.
   if (!SPOKEN_KINDS.has(kind) || !tts.enabled()) return publish()
   line.audio = `/v1/speech/${id}`
-  const job = tts.render(id, text, voiceOf(line))
+  const voiceText = cfg.hermes && extra.device === 'watch' ? text.split(/(?<=[.!?])\s+/)[0].split(/\s+/).slice(0, 30).join(' ') : text
+  const job = tts.render(id, voiceText, voiceOf(line))
   Promise.race([job, new Promise(r => setTimeout(r, 1500))]).then(publish)
 }
 /// The voice a line is read in: its agent's (agents.json "voice"), else the first agent's.
@@ -612,16 +615,25 @@ const tts = {
   data: new Map(),                      // id -> the m4a, for the long poll that carries the line
   enabled() {
     const e = ttsEngine()
-    return e === 'kokoro' ? kokoro.ready : e === 'say' ? !!cfg.tts.voice : e === 'openai' ? !!cfg.tts.key : false
+    return e === 'kokoro' ? kokoro.ready : e === 'say' ? !!cfg.tts.voice : e === 'openai' ? !!cfg.tts.key : e === 'hermes' ? !!cfg.hermes?.token : false
   },
   render(id, text, voice) {
     const out = path.join(SPEECH_DIR, `${id}.m4a`), t0 = Date.now(), e = ttsEngine()
-    const job = (e === 'kokoro' ? this.kokoro(text, voice, out) : e === 'openai' ? this.openai(text, out) : this.say(text, out))
+    const job = (e === 'kokoro' ? this.kokoro(text, voice, out) : e === 'openai' ? this.openai(text, out) : e === 'hermes' ? this.hermes(text, out) : this.say(text, out))
       .then(() => { log(`speech ${e}${e === 'kokoro' ? ` ${voice}` : ''} ${Date.now() - t0}ms`); this.data.set(id, fs.readFileSync(out)); return out })
       .catch(err => { log('speech failed:', err.message); return null })
     this.jobs.set(id, job)
     if (this.jobs.size > 60) { const [old] = this.jobs.keys(); this.jobs.delete(old); this.data.delete(old); fs.rm(path.join(SPEECH_DIR, `${old}.m4a`), () => {}) }
     return job
+  },
+  async hermes(text, out) {
+    const res = await fetch(cfg.tts.endpoint, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(120_000),
+      headers: { Authorization: `Bearer ${cfg.hermes.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input: text.slice(0, 4000), voice: cfg.tts.voice || 'F1', response_format: 'wav' }) })
+    if (!res.ok) throw new Error(`Voix Hermès indisponible (${res.status})`)
+    const wav = out + '.wav'; fs.writeFileSync(wav, Buffer.from(await res.arrayBuffer()), { mode: 0o600 })
+    try { await run('ffmpeg', ['-y','-loglevel','error','-i',wav,'-c:a','aac','-b:a','48k',out], 120_000) }
+    finally { fs.rmSync(wav, { force: true }) }
   },
   async kokoro(text, voice, out) {
     const r = await fetch(`http://127.0.0.1:${KOKORO_PORT}/speak`, { method: 'POST', headers: { 'content-type': 'application/json' },
@@ -835,8 +847,8 @@ function approvalsFor(s) { for (const a of approvals.values()) if (a.sessionId =
 // ---------- routing ----------
 // A spoken verdict is the whole utterance ("yes, but don't run it" is not a yes), and it answers the approval card the
 // watch shows (its id comes with the clip); with no card id and more than one pending, Chums asks instead of guessing.
-const YES = /^(yes|yeah|yep|allow|allow it|approve|approved|approve it|do it|go ahead|sure|ok|okay)$/i
-const NO = /^(no|nope|deny|deny it|don't|do not|stop|cancel|reject)$/i
+const YES = /^(oui|autoriser|accepter|yes|yeah|yep|allow|allow it|approve|approved|approve it|do it|go ahead|sure|ok|okay)$/i
+const NO = /^(non|refuser|annuler|no|nope|deny|deny it|don't|do not|stop|cancel|reject)$/i
 const bare = t => t.toLowerCase().replace(/[^a-z' ]/g, ' ').replace(/\s+/g, ' ').trim()
 const STATUS_Q = /\b(what'?s running|status|what happened|anything (new|waiting)|how('s| is) (it|everything) going)\b/i
 
@@ -883,7 +895,7 @@ function statusLine() {
 
 // agentId: who the watch was talking to when the recording started (fixed then, whatever it shows now). With it, the
 // order goes to that agent's session and nowhere else, and a yes or no answers only that agent's requests.
-function route(text, shownApproval = null, agentId = null, device = null, files = [], shown = []) {
+async function route(text, shownApproval = null, agentId = null, device = null, files = [], shown = []) {
   text = text.trim()
   const fileNames = files.map(f => path.basename(f).replace(/^\d+-[0-9a-f]{6}-/, '')).join(', ')
   const filesOnly = !text && files.length > 0                        // sent without words: the order asks to look
@@ -931,8 +943,9 @@ function route(text, shownApproval = null, agentId = null, device = null, files 
   }
 
   const id = crypto.randomUUID()
+  if (target.driver && agentNamed(target.name)?.runtime === 'hermes' && files.length) throw Object.assign(new Error('Les pièces jointes Hermès ne sont pas encore disponibles. Envoie du texte ou un message vocal.'), { status: 400 })
   const attached = files.length ? `\n\nAttached (files on this Mac; read them): ${files.join(', ')}` : ''
-  deliver(target, { type: 'order', text: soulPrefix(target) + text + attached, said: text, utteranceId: id, device: device ?? 'watch' })
+  await deliver(target, { type: 'order', text: soulPrefix(target) + text + attached, said: text, utteranceId: id, device: device ?? 'watch', files })
   target.replyTo = device                                             // its answer is spoken on the device that asked
   if (agentNamed(target.name)) focusOn(target.name)
   kokoro.keepWarm(agentNamed(target.name)?.voice)
@@ -945,7 +958,7 @@ function route(text, shownApproval = null, agentId = null, device = null, files 
   const echo = agent || sessions.size === 1 ? said : `${target.name}: ${said}`
   const echoTag = agentNamed(target.name) ? { agent: target.name } : {}
   // what you sent shows with what you said: the first picture on the line itself, any others on lines of their own
-  say(filesOnly ? shown[0]?.title ?? fileNames : echo, 'Chums', 'echo', { ...echoTag, ...(shown[0] ? { artifact: shown[0] } : {}) })
+  say(agentNamed(target.name)?.runtime === 'hermes' ? text : filesOnly ? shown[0]?.title ?? fileNames : echo, 'Chums', 'echo', { ...echoTag, ...(shown[0] ? { artifact: shown[0] } : {}) })
   for (const a of shown.slice(1)) say(a.title, 'Chums', 'echo', { ...echoTag, artifact: a })
   log('order ->', target.name, JSON.stringify(text), files.length ? `+ ${files.length} file${files.length > 1 ? 's' : ''}` : '')
   return { kind: 'order', target: target.name, echo, id }
@@ -984,13 +997,16 @@ function askApproval(s, requestId, tool, description, inputPreview) {
   bump()
 }
 
-function verdict(requestId, behavior) {
+async function verdict(requestId, behavior) {
   const a = approvals.get(requestId)
-  if (!a) return { kind: 'verdict', echo: 'That request is already closed.' }
-  approvals.delete(requestId)
+  if (!a) {
+    if (cfg.hermes) throw Object.assign(new Error('Cette autorisation n’est plus active.'), { status: 409 })
+    return { kind: 'verdict', echo: 'That request is already closed.' }
+  }
   const s = sessions.get(a.sessionId)
   if (s) {
-    deliver(s, { type: 'verdict', requestId, behavior })
+    await deliver(s, { type: 'verdict', requestId, behavior })
+    approvals.delete(requestId)
     s.status = 'working'
   }
   const who = agentNamed(a.session)?.name ?? a.session
@@ -1047,8 +1063,10 @@ function padToWav(buf) {
   })
 }
 
+const sharedWhisper = cfg.stt ? new SharedWhisper(cfg.stt) : null
 async function transcribe(buf) {
   const wav = await padToWav(buf)
+  if (sharedWhisper) return (await sharedWhisper.transcribe(wav)).trim()
   const form = new FormData()
   form.append('file', new Blob([wav], { type: 'audio/wav' }), 'utterance.wav')
   form.append('model', 'base')
@@ -1255,9 +1273,10 @@ const handle = async (req, res) => {
       const text = await transcribe(buf)
       const t1 = Date.now()
       // shaping an agent's soul: what was said becomes a proposed change to see and save
+      if (req.headers['x-chums-soul'] && cfg.hermes) return json(res, 409, { error: 'La personnalité se règle dans Hermès.' })
       if (req.headers['x-chums-soul']) return json(res, 200, { transcript: text, ...(await soulFromVoice(req.headers['x-chums-soul'], text)) })
       // the approval card on the watch while it recorded, and the agent it was talking to when it started
-      const r = route(text, req.headers['x-chums-approval'] || null, req.headers['x-chums-agent'] || null, deviceOf(req.headers['x-chums-device']))
+      const r = await route(text, req.headers['x-chums-approval'] || null, req.headers['x-chums-agent'] || null, deviceOf(req.headers['x-chums-device']))
       log(`utterance ${buf.length}B stt=${t1 - t0}ms:`, JSON.stringify(text), '->', r.kind)
       return json(res, 200, { transcript: text, ...r, sttMs: t1 - t0 })
     }
@@ -1265,9 +1284,10 @@ const handle = async (req, res) => {
       const body = await readJSON(req)
       const { approval, agent, soul, device, files } = body
       const text = typeof body.text === 'string' ? body.text.slice(0, 4000) : body.text   // a message, not a document
+      if (soul && cfg.hermes) return json(res, 409, { error: 'La personnalité se règle dans Hermès.' })
       if (soul) return json(res, 200, { transcript: text, ...(await soulFromVoice(soul, String(text ?? ''))) })
       const paths = uploaded(files), shown = paths.map(artifactFor).filter(Boolean)
-      return json(res, 200, { transcript: text, ...route(String(text ?? ''), approval ?? null, agent ?? null, deviceOf(device), paths, shown) })
+      return json(res, 200, { transcript: text, ...await route(String(text ?? ''), approval ?? null, agent ?? null, deviceOf(device), paths, shown) })
     }
     if (p === '/v1/focus' && req.method === 'POST') {                 // the agent the iPhone shows now
       const { agent } = await readJSON(req)
@@ -1282,6 +1302,10 @@ const handle = async (req, res) => {
     }
     const soulPath = p.match(/^\/v1\/agents\/([a-z0-9-]+)\/soul(\/save|\/undo|\/set)?$/)
     if (soulPath && agentNamed(soulPath[1])) {
+      if (cfg.hermes) {
+        if (req.method === 'GET') return json(res, 200, { id: soulPath[1], ...soulOf(soulPath[1]), canUndo: false })
+        return json(res, 409, { error: 'La personnalité se règle dans Hermès.' })
+      }
       const id = soulPath[1]
       try {
         if (!soulPath[2] && req.method === 'GET') return json(res, 200, await soulCard(id))
@@ -1311,6 +1335,7 @@ const handle = async (req, res) => {
     }
     // the models each runtime offers, and what it uses when an agent has none of its own
     if (p === '/v1/models' && req.method === 'GET') {
+      if (cfg.hermes) return json(res, 200, { hermes: { default: 'Géré dans Hermès', models: [] } })
       return json(res, 200, Object.fromEntries(SWITCHABLE.map(r => [r, { default: defaultModel(r), models: modelsFor(r) }])))
     }
     const modelPath = p.match(/^\/v1\/agents\/([a-z0-9-]+)\/model$/)
@@ -1320,6 +1345,7 @@ const handle = async (req, res) => {
     }
     // how each runtime can ask before acting, and what it does when an agent has no mode of its own
     if (p === '/v1/permissions' && req.method === 'GET') {
+      if (cfg.hermes) return json(res, 200, { hermes: { default: 'Gérées dans Hermès', modes: [] } })
       return json(res, 200, Object.fromEntries(Object.entries(PERMISSIONS).map(([r, { modes }]) => [r, { default: defaultPermission(r), modes }])))
     }
     const permissionPath = p.match(/^\/v1\/agents\/([a-z0-9-]+)\/permission$/)
@@ -1335,7 +1361,7 @@ const handle = async (req, res) => {
     }
     if (p === '/v1/verdict' && req.method === 'POST') {
       const { requestId, behavior } = await readJSON(req)
-      return json(res, 200, verdict(requestId, behavior === 'allow' ? 'allow' : 'deny'))
+      return json(res, 200, await verdict(requestId, behavior === 'allow' ? 'allow' : 'deny'))
     }
 
     json(res, 404, { error: 'not found' })
@@ -1507,6 +1533,14 @@ const setPermission = (id, mode) => serially(async () => {
 // ---------- agents the hub runs itself (Codex, Copilot, ACP agents): hub/runtimes.mjs ----------
 // They join as sessions with a driver: orders and verdicts go to it, and it reports in the hooks' words.
 const runtimeHub = {
+  hermes: cfg.hermes,
+  history(agent, lines) {
+    const own = spoken.filter(l => l.agent !== agent)
+    const last = spoken.filter(l => l.agent === agent)
+    const fresh = lines.map(l => ({ ...l, session: agent, agent, rev: rev + 1 }))
+    if (JSON.stringify(last.map(l => [l.id,l.text])) === JSON.stringify(fresh.map(l => [l.id,l.text]))) return
+    spoken.splice(0, spoken.length, ...own, ...fresh); saveConversation(); bump()
+  },
   url: `http://127.0.0.1:${cfg.port}`, token: cfg.token, port: cfg.port, dir: CONFIG_DIR, log, bump, codexPolicy,
   join({ id, name, cwd, driver }) {
     for (const s of sessions.values()) if (s.name === name && s.cwd === cwd) {      // its previous run, if still here
@@ -1548,8 +1582,8 @@ const runners = new Map()
 // LaunchAgent runs) stops there, before it touches the first one's speech servers, souls or Codex app-servers.
 function startAll() {
   for (const [id, r] of startRunners(agents.filter(runByHub), runtimeHub)) runners.set(id, r)
-  if (!process.env.CHUMS_NO_WHISPER) { startWhisper(); warmWhisper(); kokoro.start() }   // the tests' private hub neither hears nor speaks
-  seedSouls().catch(e => log('souls:', e.message))
+  if (!process.env.CHUMS_NO_WHISPER && !cfg.stt) { startWhisper(); warmWhisper(); kokoro.start() }   // the tests' private hub neither hears nor speaks
+  if (!cfg.hermes) seedSouls().catch(e => log('souls:', e.message))
 }
 let listening = 0
 for (const [srv, key] of [[server, 'port'], [publicServer, 'publicPort']]) srv.on('error', e => {
@@ -1560,6 +1594,6 @@ for (const [srv, key] of [[server, 'port'], [publicServer, 'publicPort']]) srv.o
 })
 server.listen(cfg.port, '127.0.0.1', () => { log(`Chums hub on 127.0.0.1:${cfg.port}  config ${CONFIG_PATH}`); if (++listening === 2) startAll() })
 publicServer.listen(cfg.publicPort, '127.0.0.1', () => { log(`watch API for the tunnel on 127.0.0.1:${cfg.publicPort}${cfg.publicURL ? `  (${cfg.publicURL})` : ''}`); if (++listening === 2) startAll() })
-const quit = () => { quitting = true; whisper?.kill(); kokoro.proc?.kill(); for (const r of runners.values()) r?.stop(); setTimeout(() => process.exit(0), 300) }
+const quit = () => { quitting = true; whisper?.kill(); sharedWhisper?.stop(); kokoro.proc?.kill(); for (const r of runners.values()) r?.stop(); setTimeout(() => process.exit(0), 300) }
 process.on('SIGTERM', quit)
 process.on('SIGINT', quit)

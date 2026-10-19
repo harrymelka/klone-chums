@@ -88,7 +88,7 @@ final class Speaker: NSObject, AVSpeechSynthesizerDelegate, AVAudioPlayerDelegat
 
     /// The watch voice chosen in Settings (Watch voice), else the system's US English one.
     static func voice(_ id: String?) -> AVSpeechSynthesisVoice? {
-        id.flatMap { AVSpeechSynthesisVoice(identifier: $0) } ?? AVSpeechSynthesisVoice(language: "en-US")
+        id.flatMap { AVSpeechSynthesisVoice(identifier: $0) } ?? AVSpeechSynthesisVoice(language: "fr-FR")
     }
 
     /// The English voices installed on the watch, best first (premium, enhanced, then default), novelty voices left out.

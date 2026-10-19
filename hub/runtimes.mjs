@@ -15,6 +15,7 @@
 // Orders arrive through deliver(); the agent replies with chums_reply / chums_show from the Chums MCP server
 // (channel/chums-channel.mjs in tools-only mode), and when a turn from the watch ends without one, the hub speaks the
 // first sentence of the agent's last message instead, so the watch never stays silent.
+import { HermesRunner } from '../klone/hermes.mjs'
 import { spawn, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
@@ -28,7 +29,7 @@ const CHANNEL = path.join(ROOT, 'channel/chums-channel.mjs')
 const REAL_HOME = os.userInfo().homedir                    // the CLIs' logins live there, whatever HOME the hub has
 const VERSION = '0.1.0'
 
-export const RUNTIMES = ['claude', 'codex', 'copilot', 'acp']
+export const RUNTIMES = ['claude', 'codex', 'copilot', 'acp', 'hermes']
 /// Agents whose process the hub runs (not a Claude Code session in its own terminal).
 export const runByHub = a => !!a.runtime && a.runtime !== 'claude'
 
@@ -601,7 +602,7 @@ class CodexRunner extends Runner {
 /// Starts one agent the hub runs (null for a runtime it doesn't know).
 export function startRunner(a, hub) {
   if (!RUNTIMES.includes(a.runtime) || !runByHub(a)) { hub.log(`${a.id}: unknown runtime ${a.runtime} (one of ${RUNTIMES.join(', ')})`); return null }
-  const r = new { codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
+  const r = new { hermes: HermesRunner, codex: CodexRunner, copilot: CopilotRunner, acp: AcpRunner }[a.runtime](a, hub)
   r.start()
   return r
 }

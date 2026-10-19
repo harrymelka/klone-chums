@@ -75,14 +75,16 @@ struct AgentSheet: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
-                        header.id(Part.name).padding(.bottom, 26)
+                        header.allowsHitTesting(currentRuntime != "hermes").id(Part.name).padding(.bottom, 26)
+                        if currentRuntime != "hermes" {
                         label("Runs on")
                         runsOn.padding(.bottom, 14)
                         modelRow
                         permissionRow
                         voiceRow.padding(.bottom, 26)
+                        }
                         label("Soul")
-                        soul
+                        soul.allowsHitTesting(currentRuntime != "hermes")
                         if card?.canUndo == true && editing == nil {
                             Button { undo() } label: {
                                 Label("Undo the last change", systemImage: "arrow.uturn.backward")
@@ -95,7 +97,7 @@ struct AgentSheet: View {
                         if let message {
                             Text(message).font(.footnote).foregroundStyle(Pal.amber).padding(.top, 8)
                         }
-                        Text("Tap a part to change it.")
+                        Text(currentRuntime == "hermes" ? "Personnalité, modèle et autorisations se règlent dans Hermès." : "Tap a part to change it.")
                             .font(.footnote).foregroundStyle(Ink.quiet).padding(.top, 10).padding(.leading, 2)
                     }
                     .padding(.horizontal, 20).padding(.top, 30).padding(.bottom, 30)
