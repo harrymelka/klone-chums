@@ -69,3 +69,13 @@ provenant d’une montre déconnectée comme une lecture actuelle. Le système A
 reste responsable de vérifier le mode avant d’autoriser l’installation.
 Un câble iPhone–Mac et les deux appareils déverrouillés ont été demandés pour
 rétablir la connexion. Aucune app Watch installée n’a été supprimée.
+
+## Watch installée et lancée
+
+Le mode développeur a été rafraîchi à `enabled` après reconnexion de l’iPhone
+par câble. `python3 klone/install-watch.py` a ensuite réussi : installation de
+`com.harry.klonechums.watchkitapp`, puis lancement confirmé par devicectl.
+La capture suivante a échoué car la liaison de développement avec la montre
+s’est interrompue. Aucun événement HTTP de la montre n’a encore été observé
+au moment de cette vérification ; sa connexion à la passerelle et le parcours
+vocal restent à tester avec Harry. Installation n’équivaut pas à validation réseau.

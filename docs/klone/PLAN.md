@@ -43,8 +43,9 @@ iPhone puis Watch en priorité. Conserver le design upstream avant toute refonte
 - [x] Préparer une route HTTPS privée dédiée sans toucher à Aura.
 - [x] Tailscale reconnecté ; route Serve privée 8444 active et joignable.
 - [x] L’app iPhone a rejoint la passerelle privée (événement de lancement reçu).
-- [ ] Activer le mode développeur Watch.
-- [ ] Installation, parole et autorisation sur Watch physique.
+- [x] Activer le mode développeur Watch.
+- [x] Installation et lancement sur Watch physique confirmés.
+- [ ] Connexion réseau, parole et autorisation sur Watch physique à confirmer avec Harry.
 - [ ] Essais autre Wi-Fi / cellulaire ; autonomie distante non revendiquée avant ces essais.
 
 ## 5 — Suite après validation du cœur
