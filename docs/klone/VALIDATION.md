@@ -58,3 +58,14 @@ sur ces composants ne doivent pas déclencher leur installation.
 - Le dernier échange vocal journalisé a utilisé l’audio Supertonic fourni par
   Hermès, et non le repli Apple. Quatre extraits F1/F3/M1/M3 ont été générés
   localement pour comparaison ; le préréglage actuel F1 n’a pas été changé.
+
+## Reconnexion Watch après activation annoncée
+
+Harry indique avoir activé le mode développeur. La Watch reste déconnectée de
+CoreDevice et les informations de développement retournées sont en cache.
+L’installation directe a expiré après 45 secondes ; elle n’est pas présentée
+comme réussie. Le script n’interprète désormais plus une valeur « disabled »
+provenant d’une montre déconnectée comme une lecture actuelle. Le système Apple
+reste responsable de vérifier le mode avant d’autoriser l’installation.
+Un câble iPhone–Mac et les deux appareils déverrouillés ont été demandés pour
+rétablir la connexion. Aucune app Watch installée n’a été supprimée.
