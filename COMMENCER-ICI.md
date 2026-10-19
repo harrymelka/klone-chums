@@ -75,3 +75,29 @@ Contrôle en lecture seule : `python3 klone/check.py`.
 Les secrets restent dans `.local/` et dans le fichier Swift généré ignoré par Git.
 Ne pas partager les builds, fichiers de connexion ou journaux privés.
 Le README original de Chums est conservé pour faciliter le suivi upstream.
+
+## Installer sur la Watch
+
+Sur la montre : **Réglages → Confidentialité et sécurité → Mode développeur**.
+Activer, accepter le redémarrage, déverrouiller puis confirmer **Activer**.
+Garder la Watch déverrouillée près de l’iPhone ; le Mac doit pouvoir la joindre.
+
+```sh
+python3 klone/install-watch.py
+```
+
+Le script vérifie le mode développeur avant l’installation. Le même build iPhone
+contient le binaire Watch signé. La montre utilise la même passerelle privée et
+la même conversation Hermès ; aucun nouveau profil ni fournisseur IA n’est créé.
+
+## Comprendre le vocal
+
+- Parole entrante : enregistrement sur l’appareil, transcription par Whisper local dans `binome`.
+- Réponse écrite : notre profil Hermès et son fournisseur de modèle existant.
+- Réponse parlée : Supertonic 3 local, préréglage F1 pour l’essai actuel, livré en AAC.
+- Si l’audio local manque : le client peut utiliser sa voix Apple française de secours.
+
+Les préréglages F1, F3, M1 et M3 sont disponibles dans la passerelle existante.
+Les exemples locaux sont sous `.local/voice-previews/`, non publiés dans Git.
+Ces voix restent des préréglages synthétiques ; changer d’avatar ne leur donne
+pas une voix différente automatiquement.

@@ -41,3 +41,20 @@ Journaux privés dans `.local/` : `upstream-tests.log`, `hermes-tests.log`,
 Le doctor upstream vérifie WhisperKit, Claude et Funnel ; ces dépendances ne
 sont pas requises dans notre mode Hermès/Whisper existant. Ses échecs initiaux
 sur ces composants ne doivent pas déclencher leur installation.
+
+## Correction iPhone et préparation Watch
+
+- Le cadre arrondi simulant une montre et la couronne décorative ont été retirés
+  de `CharacterStage` sur iPhone. Les gestes et le moteur de rendu sont conservés.
+- Build signé réussi, mise à jour iPhone installée et lancée.
+- Capture sur iPhone : personnage compact directement dans l’app. La vue agrandie
+  reste à revoir avec Harry ; la capture suivante a coïncidé avec son utilisation
+  des Réglages et ne constitue pas une preuve de la vue agrandie.
+- Appairage Watch/Mac renouvelé. La vérification directe et une tentative réelle
+  d’installation confirment le mode développeur désactivé. L’installation est
+  refusée par le système (montage DDI interdit tant que ce mode est désactivé).
+- Le script `klone/install-watch.py` est prêt ; l’activation et la confirmation
+  après redémarrage doivent être faites sur la montre.
+- Le dernier échange vocal journalisé a utilisé l’audio Supertonic fourni par
+  Hermès, et non le repli Apple. Quatre extraits F1/F3/M1/M3 ont été générés
+  localement pour comparaison ; le préréglage actuel F1 n’a pas été changé.

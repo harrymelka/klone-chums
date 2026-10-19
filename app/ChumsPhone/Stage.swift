@@ -4,11 +4,9 @@ import SwiftUI
 /// newest line just above it), in the middle when there's no conversation yet, or in front when you tap it.
 enum StagePlace { case dock, middle, front }
 
-/// The character, drawn by the watch's rig every frame. Big, it's in a window the shape of the watch's screen with the
-/// crown on its side, and takes the watch's touches (hold to talk, tap to poke, stroke to pet, the crown or a two-finger
-/// twist). Small, it's the character alone, its edges fading into the black (no frame); a tap brings it to the front, a
-/// long press opens its settings. It's one view that moves between the two, so it shrinks and grows without a cut.
-/// It only draws: the rig moves on the model's own clock (ScreenModel.frame), drawn or not.
+/// The shared character rendered directly in the iPhone interface, without a
+/// simulated watch case or Digital Crown. Touches, holds, petting and two-finger
+/// rotation remain available; the compact conversation version fades at its edges.
 struct CharacterStage: View {
     let model: ScreenModel
     let agent: AgentInfo
@@ -26,8 +24,6 @@ struct CharacterStage: View {
 
     var body: some View {
         GeometryReader { g in
-            let shape = RoundedRectangle(cornerRadius: small ? min(g.size.width, g.size.height) / 2 : g.size.width * 0.21,
-                                         style: .continuous)
             TimelineView(.animation(minimumInterval: live ? nil : 1.0 / 30, paused: paused)) { tl in
                 Canvas { ctx, size in
                     let dt = crop.last.map { tl.date.timeIntervalSince($0) } ?? 1
@@ -41,19 +37,18 @@ struct CharacterStage: View {
                 }
             }
             .mask {
-                // big: the watch's screen; small: no edge at all, it fades out
-                ZStack {
-                    shape.fill(.black).opacity(small ? 0 : 1)
+                if small {
                     Rectangle().fill(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.14),
                                                             .init(color: .black, location: 0.7), .init(color: .clear, location: 1)],
                                                     startPoint: .top, endPoint: .bottom))
                         .mask(LinearGradient(stops: [.init(color: .clear, location: 0), .init(color: .black, location: 0.12),
                                                      .init(color: .black, location: 0.88), .init(color: .clear, location: 1)],
                                              startPoint: .leading, endPoint: .trailing))
-                        .opacity(small ? 1 : 0)
+                } else {
+                    Rectangle().fill(.black)
                 }
             }
-            .contentShape(shape)
+            .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { v in model.drag(v.location, in: g.size) }
@@ -66,18 +61,6 @@ struct CharacterStage: View {
                     .onEnded { _ in twisted = 0 },
                 including: small ? .none : .all
             )
-            .overlay {
-                shape.strokeBorder(LinearGradient(colors: [Color(white: 0.32), Color(white: 0.1)], startPoint: .top, endPoint: .bottom),
-                                   lineWidth: 1.5)
-                    .opacity(small ? 0 : 1)
-            }
-            .overlay(alignment: .topTrailing) {
-                if !small {                                              // only with the watch's window around it
-                    Crown { model.crown($0) }
-                        .offset(x: 24, y: g.size.height * 0.17 - 18)    // just outside the right edge, where the watch has it
-                        .transition(.opacity)
-                }
-            }
             .overlay {
                 if small {
                     Color.clear.contentShape(Rectangle())

@@ -1,8 +1,7 @@
 import SwiftUI
 import WidgetKit
 
-/// The one screen, for the agent you talk to. Before you've said anything to it, it stands in the middle in a window
-/// the shape of the watch's screen (the same character, touches and crown as on the watch). Once there's a
+/// The iPhone screen shows the character directly in the app, without a simulated watch. Once there's a
 /// conversation, it is the conversation's last row, unframed, at the left: its newest line arrives right above it, what
 /// it's doing plays out beside it (StateLane), and it scrolls with the rest. A tap on it brings it in front. At the top, only its name
 /// (a tap opens its card), the agents' button (a panel from the left, or a swipe from the edge) and the app's settings.

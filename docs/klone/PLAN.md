@@ -50,6 +50,7 @@ iPhone puis Watch en priorité. Conserver le design upstream avant toute refonte
 ## 5 — Suite après validation du cœur
 
 - [ ] Photos puis fichiers : transfert explicite Mac ↔ conteneur.
+- [x] Retirer le cadre de montre et la couronne décorative du personnage sur iPhone.
 - [ ] Choix d’apparence sans multiplier profils et mémoires.
 - [ ] Appairage dynamique / QR code, révocation par appareil.
 - [ ] Notifications push et comportement en arrière-plan.
